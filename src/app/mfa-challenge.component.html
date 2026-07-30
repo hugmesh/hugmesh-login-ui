@@ -1,0 +1,109 @@
+<section class="hug-mfa" data-testid="mfa-challenge-view" aria-labelledby="hug-mfa-challenge-heading">
+  <h2 id="hug-mfa-challenge-heading" i18n="Heading of the two-factor step-up challenge page|@@mfaChallenge.heading">Confirm it's you</h2>
+
+  @if (dark()) {
+    <p class="mfa-help" data-testid="mfa-challenge-dark"
+       i18n="Shown when the two-factor feature is switched off platform-wide|@@mfaChallenge.dark">
+      Two-factor authentication is not enabled yet.
+    </p>
+    <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaChallenge.back">Back to sign in</a></p>
+  } @else if (satisfied()) {
+    <p class="mfa-ok" data-testid="mfa-challenge-ok" role="status" aria-live="polite"
+       i18n="Announced when the step-up challenge succeeded|@@mfaChallenge.ok">
+      Verified. Continuing…
+    </p>
+  } @else {
+    <p data-testid="mfa-challenge-intro" i18n="Introduction on the step-up challenge page|@@mfaChallenge.intro">
+      This action needs a fresh security check. Confirm with your authenticator,
+      a passkey, or a recovery code.
+    </p>
+
+    @if (error()) {
+      <p class="mfa-error" data-testid="mfa-challenge-error" role="alert" aria-live="assertive">
+        {{ error() }}
+      </p>
+    }
+
+    <fieldset class="mfa-methods">
+      <legend i18n="Legend of the verification-method radio group|@@mfaChallenge.methods.legend">How would you like to verify?</legend>
+      <label>
+        <input
+          type="radio"
+          name="method"
+          data-testid="mfa-method-totp"
+          [checked]="method() === 'totp'"
+          (change)="setMethod('totp')"
+        />
+        <ng-container i18n="Radio option: verify with an authenticator app|@@mfaChallenge.method.totp">Authenticator app (6-digit code)</ng-container>
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="method"
+          data-testid="mfa-method-webauthn"
+          [checked]="method() === 'webauthn'"
+          [disabled]="!webauthnAvailable"
+          (change)="setMethod('webauthn')"
+        />
+        <ng-container i18n="Radio option: verify with a passkey|@@mfaChallenge.method.webauthn">Passkey</ng-container>
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="method"
+          data-testid="mfa-method-recovery"
+          [checked]="method() === 'recovery'"
+          (change)="setMethod('recovery')"
+        />
+        <ng-container i18n="Radio option: verify with a recovery code|@@mfaChallenge.method.recovery">Recovery code</ng-container>
+      </label>
+    </fieldset>
+
+    @if (method() === 'webauthn') {
+      <div class="mfa-actions">
+        <button
+          type="button"
+          class="mfa-btn primary"
+          data-testid="mfa-webauthn-go"
+          [disabled]="busy() || !webauthnAvailable"
+          (click)="useWebauthn()"
+          i18n="Button that starts passkey verification|@@mfaChallenge.webauthn.go"
+        >
+          Verify with a passkey
+        </button>
+      </div>
+    } @else {
+      <form class="mfa-verify" (ngSubmit)="submitCode()">
+        <label for="hug-mfa-challenge-code">{{ codeLabel() }}</label>
+        <input
+          id="hug-mfa-challenge-code"
+          name="code"
+          data-testid="mfa-challenge-code"
+          type="text"
+          [attr.inputmode]="method() === 'totp' ? 'numeric' : null"
+          autocomplete="one-time-code"
+          [(ngModel)]="code"
+          aria-describedby="hug-mfa-challenge-code-help"
+        />
+        <p class="mfa-help" id="hug-mfa-challenge-code-help">
+          @if (method() === 'totp') {
+            <ng-container i18n="Help text under the code field when verifying with an authenticator app|@@mfaChallenge.code.help.totp">Enter the current 6-digit code from your authenticator app.</ng-container>
+          } @else {
+            <ng-container i18n="Help text under the code field when verifying with a recovery code|@@mfaChallenge.code.help.recovery">Enter one of the recovery codes you saved when you set up two-factor.</ng-container>
+          }
+        </p>
+        <div class="mfa-actions">
+          <button
+            type="submit"
+            class="mfa-btn primary"
+            data-testid="mfa-challenge-submit"
+            [disabled]="busy() || !codeValid()"
+            i18n="Submit button on the step-up code form|@@mfaChallenge.submit"
+          >
+            Verify
+          </button>
+        </div>
+      </form>
+    }
+  }
+</section>

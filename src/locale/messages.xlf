@@ -1,0 +1,1206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="2.0" xmlns="urn:oasis:names:tc:xliff:document:2.0" srcLang="en-US">
+  <file id="ngi18n" original="ng.template">
+    <unit id="app.skipToContent">
+      <notes>
+        <note category="location">src/app/app.component.html:1,5</note>
+        <note category="meaning">Skip link for keyboard/screen-reader users, first focusable element</note>
+      </notes>
+      <segment>
+        <source>Skip to main content</source>
+      </segment>
+    </unit>
+    <unit id="appeal.heading">
+      <notes>
+        <note category="location">src/app/appeal.component.html:2,9</note>
+        <note category="meaning">Heading of the account-appeal page</note>
+      </notes>
+      <segment>
+        <source>Appeal an account block</source>
+      </segment>
+    </unit>
+    <unit id="appeal.intro">
+      <notes>
+        <note category="location">src/app/appeal.component.html:16,22</note>
+        <note category="meaning">Introduction on the account-appeal page</note>
+      </notes>
+      <segment>
+        <source> If your account has been suspended or banned and you believe this was a mistake, you can appeal by email. Include your account name and anything that helps us review your case. </source>
+      </segment>
+    </unit>
+    <unit id="appeal.step.email">
+      <notes>
+        <note category="location">src/app/appeal.component.html:22,23</note>
+        <note category="meaning">First step of the appeal instructions</note>
+      </notes>
+      <segment>
+        <source>Email the support address below from an account you can be reached at.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.step.describe">
+      <notes>
+        <note category="location">src/app/appeal.component.html:23,24</note>
+        <note category="meaning">Second step of the appeal instructions</note>
+      </notes>
+      <segment>
+        <source>Describe what happened and why you think the block should be lifted.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.step.reply">
+      <notes>
+        <note category="location">src/app/appeal.component.html:24,31</note>
+        <note category="meaning">Third step of the appeal instructions</note>
+      </notes>
+      <segment>
+        <source>We will review your appeal and reply to the address you wrote from.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.mailto.help">
+      <notes>
+        <note category="location">src/app/appeal.component.html:39,45</note>
+        <note category="meaning">Help text under the support email link</note>
+      </notes>
+      <segment>
+        <source> Opens your email app with the subject pre-filled. If nothing opens, copy this address and email us from any account you can be reached at. </source>
+      </segment>
+    </unit>
+    <unit id="appeal.contactUnavailable">
+      <notes>
+        <note category="location">src/app/appeal.component.html:50,56</note>
+        <note category="meaning">Shown when the support address could not be fetched</note>
+      </notes>
+      <segment>
+        <source> The support address could not be loaded right now. Please try again shortly, or reach out through any official hugmesh.systems channel. </source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.heading">
+      <notes>
+        <note category="location">src/app/appeal.component.html:57,61</note>
+        <note category="meaning">Heading of the structured-appeal form</note>
+      </notes>
+      <segment>
+        <source>Submit a structured appeal</source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.submitted">
+      <notes>
+        <note category="location">src/app/appeal.component.html:62,66</note>
+        <note category="meaning">Confirmation shown after the server recorded a structured appeal</note>
+      </notes>
+      <segment>
+        <source> Your appeal has been recorded. We will review it and follow up. </source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.intro">
+      <notes>
+        <note category="location">src/app/appeal.component.html:66,71</note>
+        <note category="meaning">Introduction above the structured-appeal form</note>
+      </notes>
+      <segment>
+        <source> Because you are signed in, you can also submit a structured appeal directly — it will be reviewed alongside the email option above. </source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.label">
+      <notes>
+        <note category="location">src/app/appeal.component.html:72,73</note>
+        <note category="meaning">Accessible name of the structured-appeal form</note>
+      </notes>
+      <segment>
+        <source>Submit a structured account appeal</source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.reason.label">
+      <notes>
+        <note category="location">src/app/appeal.component.html:73,77</note>
+        <note category="meaning">Label for the appeal free-text field</note>
+      </notes>
+      <segment>
+        <source>What happened, and why should this be reconsidered?</source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.contactEmail.label">
+      <notes>
+        <note category="location">src/app/appeal.component.html:85,89</note>
+        <note category="meaning">Label for the optional alternate contact email field</note>
+      </notes>
+      <segment>
+        <source>Alternate contact email (optional)</source>
+      </segment>
+    </unit>
+    <unit id="appeal.back">
+      <notes>
+        <note category="location">src/app/appeal.component.html:111,114</note>
+        <note category="meaning">Link back to the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+      </segment>
+    </unit>
+    <unit id="appeal.mailto.subject">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:22</note>
+        <note category="meaning">Subject line pre-filled into the appeal email</note>
+      </notes>
+      <segment>
+        <source>Account appeal — hugmesh.systems</source>
+      </segment>
+    </unit>
+    <unit id="appeal.mailto.label">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:99</note>
+        <note category="description">Accessible name of the support email link. {{PLACEHOLDER}} is the support address</note>
+      </notes>
+      <segment>
+        <source>Email <ph id="0" equiv="address" disp="to"/> to appeal your account block</source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.submitting">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:160</note>
+        <note category="meaning">Appeal submit button label while the request is in flight</note>
+      </notes>
+      <segment>
+        <source>Submitting…</source>
+      </segment>
+    </unit>
+    <unit id="appeal.form.submit">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:161</note>
+        <note category="meaning">Appeal submit button label</note>
+      </notes>
+      <segment>
+        <source>Submit appeal</source>
+      </segment>
+    </unit>
+    <unit id="appeal.error.unauthenticated">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:167</note>
+        <note category="meaning">Appeal submit error — the browser had no usable session</note>
+      </notes>
+      <segment>
+        <source>We could not verify a signed-in session from this browser, so the structured appeal was not recorded. Please use the email address below instead.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.error.invalid">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:169</note>
+        <note category="meaning">Appeal submit error — the appeal text was empty</note>
+      </notes>
+      <segment>
+        <source>Please describe your appeal before submitting.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.error.network">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:171</note>
+        <note category="meaning">Appeal submit error — the server was unreachable</note>
+      </notes>
+      <segment>
+        <source>We could not reach the server. Please try again, or use the email address below.</source>
+      </segment>
+    </unit>
+    <unit id="appeal.error.unknown">
+      <notes>
+        <note category="location">src/app/appeal.component.ts:173</note>
+        <note category="meaning">Appeal submit error — any other server-side failure</note>
+      </notes>
+      <segment>
+        <source>Your appeal could not be recorded right now. Please try again, or use the email address below.</source>
+      </segment>
+    </unit>
+    <unit id="banner.region.label">
+      <notes>
+        <note category="location">src/app/login-banner.component.html:7,11</note>
+        <note category="meaning">Accessible name of the announcements region on the login page</note>
+      </notes>
+      <segment>
+        <source>Announcements</source>
+      </segment>
+    </unit>
+    <unit id="banner.dismiss.label">
+      <notes>
+        <note category="location">src/app/login-banner.component.ts:76</note>
+        <note category="description">Accessible name of an announcement&apos;s dismiss button. {{PLACEHOLDER}} is the announcement title</note>
+      </notes>
+      <segment>
+        <source>Dismiss announcement: <ph id="0" equiv="title" disp="a.title"/></source>
+      </segment>
+    </unit>
+    <unit id="banner.frame.title">
+      <notes>
+        <note category="location">src/app/login-banner.component.ts:81</note>
+        <note category="description">Accessible title of the announcement body frame. {{PLACEHOLDER}} is the announcement title</note>
+      </notes>
+      <segment>
+        <source>Announcement: <ph id="0" equiv="title" disp="a.title"/></source>
+      </segment>
+    </unit>
+    <unit id="login.heading">
+      <notes>
+        <note category="location">src/app/login.component.html:4,9</note>
+        <note category="meaning">Heading of the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Sign in to hugmesh.systems</source>
+      </segment>
+    </unit>
+    <unit id="login.intro">
+      <notes>
+        <note category="location">src/app/login.component.html:28,32</note>
+        <note category="meaning">Instruction under the sign-in heading</note>
+      </notes>
+      <segment>
+        <source> Sign in with your hugmesh.systems username and password. </source>
+      </segment>
+    </unit>
+    <unit id="login.username.label">
+      <notes>
+        <note category="location">src/app/login.component.html:32,37</note>
+        <note category="meaning">Label for the username field</note>
+      </notes>
+      <segment>
+        <source>Username</source>
+      </segment>
+    </unit>
+    <unit id="login.username.placeholder">
+      <notes>
+        <note category="location">src/app/login.component.html:41,44</note>
+        <note category="meaning">Placeholder in the username field</note>
+      </notes>
+      <segment>
+        <source>your username</source>
+      </segment>
+    </unit>
+    <unit id="login.password.label">
+      <notes>
+        <note category="location">src/app/login.component.html:48,53</note>
+        <note category="meaning">Label for the password field</note>
+      </notes>
+      <segment>
+        <source>Password</source>
+      </segment>
+    </unit>
+    <unit id="login.password.placeholder">
+      <notes>
+        <note category="location">src/app/login.component.html:57,60</note>
+        <note category="meaning">Placeholder in the password field</note>
+      </notes>
+      <segment>
+        <source>your password</source>
+      </segment>
+    </unit>
+    <unit id="login.submit">
+      <notes>
+        <note category="location">src/app/login.component.html:71,76</note>
+        <note category="meaning">Submit button on the sign-in form</note>
+      </notes>
+      <segment>
+        <source> Sign in </source>
+      </segment>
+    </unit>
+    <unit id="login.mfa.intro">
+      <notes>
+        <note category="location">src/app/login.component.html:80,85</note>
+        <note category="meaning">Instruction shown when sign-in needs a second factor</note>
+      </notes>
+      <segment>
+        <source> Enter the verification code from your authenticator app to finish signing in. </source>
+      </segment>
+    </unit>
+    <unit id="login.mfa.code.label">
+      <notes>
+        <note category="location">src/app/login.component.html:85,90</note>
+        <note category="meaning">Label for the two-factor passcode field</note>
+      </notes>
+      <segment>
+        <source>Verification code</source>
+      </segment>
+    </unit>
+    <unit id="login.mfa.code.placeholder">
+      <notes>
+        <note category="location">src/app/login.component.html:95,98</note>
+        <note category="meaning">Placeholder in the two-factor passcode field</note>
+      </notes>
+      <segment>
+        <source>6-digit code</source>
+      </segment>
+    </unit>
+    <unit id="login.mfa.submit">
+      <notes>
+        <note category="location">src/app/login.component.html:109,115</note>
+        <note category="meaning">Submit button on the two-factor passcode form</note>
+      </notes>
+      <segment>
+        <source> Verify </source>
+      </segment>
+    </unit>
+    <unit id="login.complete.greeting">
+      <notes>
+        <note category="location">src/app/login.component.html:116,124</note>
+        <note category="meaning">Greeting on the complete-registration card. {{PLACEHOLDER}} is the user&apos;s account label</note>
+      </notes>
+      <segment>
+        <source> Account created for <pc id="0" equivStart="START_TAG_STRONG" equivEnd="CLOSE_TAG_STRONG" type="other" dispStart="&lt;strong
+          data-testid=&quot;complete-greeting&quot;
+          [attr.aria-label]=&quot;greetingNeedsAriaLabel() ? greetingAccessibleName() : null&quot;
+          &gt;" dispEnd="&lt;/strong
+        &gt;"><ph id="1" equiv="INTERPOLATION" disp="{{ session.session()?.label }}"/></pc>. Finish setting up your account to unlock Matrix &amp; Mastodon. </source>
+      </segment>
+    </unit>
+    <unit id="login.complete.fieldset.legend">
+      <notes>
+        <note category="location">src/app/login.component.html:125,128</note>
+        <note category="meaning">Legend of the name fieldset on the complete-registration card</note>
+      </notes>
+      <segment>
+        <source>Your name</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.displayName.label">
+      <notes>
+        <note category="location">src/app/login.component.html:127,132</note>
+        <note category="meaning">Label for the display-name field</note>
+      </notes>
+      <segment>
+        <source>Display name</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.displayName.placeholder">
+      <notes>
+        <note category="location">src/app/login.component.html:137,142</note>
+        <note category="meaning">Placeholder in the display-name field</note>
+      </notes>
+      <segment>
+        <source>How your name appears to others</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.displayName.help">
+      <notes>
+        <note category="location">src/app/login.component.html:146,153</note>
+        <note category="meaning">Help text under the display-name field</note>
+      </notes>
+      <segment>
+        <source> This is the name other people see on Matrix and Mastodon. You can use any characters; if they cannot be read aloud, we will ask for a plain version below. Required to finish. </source>
+      </segment>
+    </unit>
+    <unit id="login.complete.screenReaderName.label">
+      <notes>
+        <note category="location">src/app/login.component.html:154,159</note>
+        <note category="meaning">Label for the ASCII screen-reader name field</note>
+      </notes>
+      <segment>
+        <source>Screen-reader name (ASCII)</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.screenReaderName.placeholder">
+      <notes>
+        <note category="location">src/app/login.component.html:166,172</note>
+        <note category="meaning">Placeholder in the ASCII screen-reader name field</note>
+      </notes>
+      <segment>
+        <source>ASCII version of your name</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.help">
+      <notes>
+        <note category="location">src/app/login.component.html:180,187</note>
+        <note category="meaning">Help text describing what the Complete registration button does</note>
+      </notes>
+      <segment>
+        <source> Saves your name and unlocks Matrix &amp; Mastodon. You can change your display name later from your profile. </source>
+      </segment>
+    </unit>
+    <unit id="login.complete.submit">
+      <notes>
+        <note category="location">src/app/login.component.html:191,200</note>
+        <note category="meaning">Button that finishes registration</note>
+      </notes>
+      <segment>
+        <source> Complete registration </source>
+      </segment>
+    </unit>
+    <unit id="login.appealLink">
+      <notes>
+        <note category="location">src/app/login.component.html:210,214</note>
+        <note category="meaning">Link to the appeal page, shown under the sign-in form</note>
+      </notes>
+      <segment>
+        <source> Account suspended or banned? <pc id="0" equivStart="START_LINK" equivEnd="CLOSE_LINK" type="link" dispStart="&lt;a routerLink=&quot;appeal&quot; data-testid=&quot;login-appeal-link&quot;&gt;" dispEnd="&lt;/a&gt;">Appeal or contact support</pc></source>
+      </segment>
+    </unit>
+    <unit id="login.securityLink">
+      <notes>
+        <note category="location">src/app/login.component.html:225,229</note>
+        <note category="meaning">Link to the account security / MFA page</note>
+      </notes>
+      <segment>
+        <source>Account security</source>
+      </segment>
+    </unit>
+    <unit id="login.complete.screenReaderName.prompt">
+      <notes>
+        <note category="location">src/app/login.component.ts:24</note>
+        <note category="meaning">Prompt shown when a display name contains characters a screen reader cannot announce</note>
+      </notes>
+      <segment>
+        <source>Your display name contains characters a screen reader cannot announce cleanly; enter an ASCII version.</source>
+      </segment>
+    </unit>
+    <unit id="login.error.mfaCodeRequired">
+      <notes>
+        <note category="location">src/app/login.component.ts:184</note>
+        <note category="meaning">Validation error when the two-factor passcode field is empty</note>
+      </notes>
+      <segment>
+        <source>Enter the verification code to continue.</source>
+      </segment>
+    </unit>
+    <unit id="login.error.credentialsRequired">
+      <notes>
+        <note category="location">src/app/login.component.ts:188</note>
+        <note category="meaning">Validation error when username or password is missing</note>
+      </notes>
+      <segment>
+        <source>Enter your username and password.</source>
+      </segment>
+    </unit>
+    <unit id="login.error.localRoleNeedsMfa">
+      <notes>
+        <note category="location">src/app/login.component.ts:249</note>
+        <note category="meaning">Shown when a passwordless local role needs a two-factor code the handoff cannot carry</note>
+      </notes>
+      <segment>
+        <source>This role needs a verification code. Sign in with your password to continue.</source>
+      </segment>
+    </unit>
+    <unit id="login.error.signInFailed">
+      <notes>
+        <note category="location">src/app/login.component.ts:266</note>
+        <note category="description">Sign-in failure. {{PLACEHOLDER}} is the server&apos;s error token, not translated</note>
+      </notes>
+      <segment>
+        <source>Sign-in failed: <ph id="0" equiv="reason" disp="reason"/></source>
+      </segment>
+    </unit>
+    <unit id="login.error.unavailable">
+      <notes>
+        <note category="location">src/app/login.component.ts:271</note>
+        <note category="meaning">Shown when the sign-in backend is switched off or unreachable</note>
+      </notes>
+      <segment>
+        <source>Sign-in is temporarily unavailable. Please try again later.</source>
+      </segment>
+    </unit>
+    <unit id="login.error.displayNameRequired">
+      <notes>
+        <note category="location">src/app/login.component.ts:291</note>
+        <note category="meaning">Validation error when the display name is blank</note>
+      </notes>
+      <segment>
+        <source>Enter a display name to continue.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.heading">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:2,6</note>
+        <note category="meaning">Heading of the two-factor step-up challenge page</note>
+      </notes>
+      <segment>
+        <source>Confirm it&apos;s you</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.dark">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:7,11</note>
+        <note category="meaning">Shown when the two-factor feature is switched off platform-wide</note>
+      </notes>
+      <segment>
+        <source> Two-factor authentication is not enabled yet. </source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.back">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:9,11</note>
+        <note category="meaning">Link back to the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.ok">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:13,16</note>
+        <note category="meaning">Announced when the step-up challenge succeeded</note>
+      </notes>
+      <segment>
+        <source> Verified. Continuing… </source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.intro">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:17,22</note>
+        <note category="meaning">Introduction on the step-up challenge page</note>
+      </notes>
+      <segment>
+        <source> This action needs a fresh security check. Confirm with your authenticator, a passkey, or a recovery code. </source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.methods.legend">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:28,34</note>
+        <note category="meaning">Legend of the verification-method radio group</note>
+      </notes>
+      <segment>
+        <source>How would you like to verify?</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.method.totp">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:37,43</note>
+        <note category="meaning">Radio option: verify with an authenticator app</note>
+      </notes>
+      <segment>
+        <source>Authenticator app (6-digit code)</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.method.webauthn">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:48,54</note>
+        <note category="meaning">Radio option: verify with a passkey</note>
+      </notes>
+      <segment>
+        <source>Passkey</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.method.recovery">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:58,65</note>
+        <note category="meaning">Radio option: verify with a recovery code</note>
+      </notes>
+      <segment>
+        <source>Recovery code</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.webauthn.go">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:72,77</note>
+        <note category="meaning">Button that starts passkey verification</note>
+      </notes>
+      <segment>
+        <source> Verify with a passkey </source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.code.help.totp">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:90,92</note>
+        <note category="meaning">Help text under the code field when verifying with an authenticator app</note>
+      </notes>
+      <segment>
+        <source>Enter the current 6-digit code from your authenticator app.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.code.help.recovery">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:92,99</note>
+        <note category="meaning">Help text under the code field when verifying with a recovery code</note>
+      </notes>
+      <segment>
+        <source>Enter one of the recovery codes you saved when you set up two-factor.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.submit">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:103,110</note>
+        <note category="meaning">Submit button on the step-up code form</note>
+      </notes>
+      <segment>
+        <source> Verify </source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.code.label.totp">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:67</note>
+        <note category="meaning">Label of the code field when verifying with an authenticator app</note>
+      </notes>
+      <segment>
+        <source>6-digit code</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.code.label.recovery">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:68</note>
+        <note category="meaning">Label of the code field when verifying with a recovery code</note>
+      </notes>
+      <segment>
+        <source>Recovery code</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.totpRequired">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:82</note>
+        <note category="meaning">Validation error when the authenticator code is empty or malformed</note>
+      </notes>
+      <segment>
+        <source>Enter the 6-digit code from your authenticator app.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.recoveryRequired">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:83</note>
+        <note category="meaning">Validation error when the recovery code is empty</note>
+      </notes>
+      <segment>
+        <source>Enter one of your recovery codes.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.noWebauthn">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:93</note>
+        <note category="meaning">Error when passkey verification is attempted in a browser without WebAuthn</note>
+      </notes>
+      <segment>
+        <source>This browser does not support passkeys. Use a code instead.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.startWebauthn">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:106</note>
+        <note category="meaning">Error when the server would not begin passkey verification</note>
+      </notes>
+      <segment>
+        <source>Could not start passkey verification.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.rejected">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:130</note>
+        <note category="meaning">Error when the step-up challenge was rejected</note>
+      </notes>
+      <segment>
+        <source>That did not verify. Try again with a current code or your passkey.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.webauthnCancelled">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:142</note>
+        <note category="meaning">Error when the user dismissed the browser&apos;s passkey prompt during verification</note>
+      </notes>
+      <segment>
+        <source>Passkey verification was cancelled or timed out.</source>
+      </segment>
+    </unit>
+    <unit id="mfaChallenge.error.webauthnUnknown">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.ts:145</note>
+        <note category="meaning">Fallback error when the browser could not verify with a passkey</note>
+      </notes>
+      <segment>
+        <source>Could not verify with a passkey.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.heading">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:2,7</note>
+        <note category="meaning">Heading of the two-factor enrollment wizard</note>
+      </notes>
+      <segment>
+        <source>Set up two-factor authentication</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.intro">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:13,20</note>
+        <note category="meaning">Introduction on the two-factor enrollment wizard</note>
+      </notes>
+      <segment>
+        <source> Add a second step to your sign-in. Choose an authenticator app (a 6-digit code) or a passkey (a device fingerprint, face, or security key). </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.choose.totp">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:25,31</note>
+        <note category="meaning">Button choosing authenticator-app enrollment</note>
+      </notes>
+      <segment>
+        <source> Use an authenticator app </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.choose.webauthn">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:36,40</note>
+        <note category="meaning">Button choosing passkey enrollment</note>
+      </notes>
+      <segment>
+        <source> Add a passkey </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.webauthn.help.available">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:41,44</note>
+        <note category="meaning">Help text under the passkey button when the browser supports passkeys</note>
+      </notes>
+      <segment>
+        <source>A passkey uses your device&apos;s fingerprint, face, or a security key. Your browser will prompt you to confirm.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.webauthn.help.unavailable">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:44,50</note>
+        <note category="meaning">Help text under the passkey button when the browser cannot do passkeys</note>
+      </notes>
+      <segment>
+        <source>This browser does not support passkeys — use an authenticator app instead.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.totp.heading">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:50,55</note>
+        <note category="meaning">Heading of the TOTP QR-code step</note>
+      </notes>
+      <segment>
+        <source>Scan this with your authenticator app</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.qr.label">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:57,61</note>
+        <note category="meaning">Accessible name of the TOTP QR code image</note>
+      </notes>
+      <segment>
+        <source>QR code to add this account to your authenticator app. If you cannot scan it, enter the setup key shown below.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.qr.fallback">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:68,73</note>
+        <note category="meaning">Shown when the QR code could not be rendered</note>
+      </notes>
+      <segment>
+        <source> Could not draw the QR code. Enter the setup key below in your authenticator app instead. </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.secret.label">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:73,75</note>
+        <note category="meaning">Label above the TOTP setup key</note>
+      </notes>
+      <segment>
+        <source>Setup key (if you can&apos;t scan):</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.secret.help">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:78,83</note>
+        <note category="meaning">Help text under the TOTP setup key</note>
+      </notes>
+      <segment>
+        <source> Type this key into your authenticator app, then enter the 6-digit code it shows. This key is shown only once. </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.passcode.label">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:83,89</note>
+        <note category="meaning">Label for the TOTP verification code field</note>
+      </notes>
+      <segment>
+        <source>6-digit code</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.passcode.help">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:96,102</note>
+        <note category="meaning">Help text under the TOTP verification code field</note>
+      </notes>
+      <segment>
+        <source> Enter the current 6-digit code from your authenticator app to finish. </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.verify">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:106,109</note>
+        <note category="meaning">Button that verifies the TOTP code and enables two-factor</note>
+      </notes>
+      <segment>
+        <source> Verify and enable </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.cancel">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:110,117</note>
+        <note category="meaning">Button abandoning the two-factor enrollment</note>
+      </notes>
+      <segment>
+        <source> Cancel </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.recovery.heading">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:117,122</note>
+        <note category="meaning">Heading of the recovery-codes step</note>
+      </notes>
+      <segment>
+        <source>Save your recovery codes</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.recovery.region.label">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:123,126</note>
+        <note category="meaning">Accessible name of the recovery-codes region</note>
+      </notes>
+      <segment>
+        <source>Recovery codes — save these now, they are shown only once</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.recovery.help">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:126,129</note>
+        <note category="meaning">Warning above the newly issued recovery codes</note>
+      </notes>
+      <segment>
+        <source> Save these codes somewhere safe. Each can be used once if you lose your authenticator. <pc id="0" equivStart="START_TAG_STRONG" equivEnd="CLOSE_TAG_STRONG" type="other" dispStart="&lt;strong&gt;" dispEnd="&lt;/strong&gt;">They are shown only once.</pc></source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.recovery.done">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:138,144</note>
+        <note category="meaning">Button confirming the recovery codes were saved</note>
+      </notes>
+      <segment>
+        <source> I&apos;ve saved them — continue </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.done.heading">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:144,146</note>
+        <note category="meaning">Heading shown after a passkey was registered</note>
+      </notes>
+      <segment>
+        <source>Passkey added</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.done.body">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:146,150</note>
+        <note category="meaning">Confirmation shown after a passkey was registered</note>
+      </notes>
+      <segment>
+        <source> Your passkey is registered. You can manage your factors in the security settings. </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.done.button">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:152,159</note>
+        <note category="meaning">Button closing the two-factor enrollment wizard</note>
+      </notes>
+      <segment>
+        <source> Done </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.dark">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:160,167</note>
+        <note category="meaning">Shown when the two-factor feature is switched off platform-wide</note>
+      </notes>
+      <segment>
+        <source> Two-factor authentication is not enabled yet. Check back once it has been turned on for your account. </source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.back">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.html:163,167</note>
+        <note category="meaning">Link back to the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.startTotp">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:92</note>
+        <note category="meaning">Error when starting authenticator-app enrollment failed</note>
+      </notes>
+      <segment>
+        <source>Could not start authenticator setup.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.passcodeRequired">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:100</note>
+        <note category="meaning">Validation error when the enrollment passcode field is empty or malformed</note>
+      </notes>
+      <segment>
+        <source>Enter the 6-digit code from your authenticator app.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.codeMismatch">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:109</note>
+        <note category="meaning">Error when the TOTP code was wrong or expired</note>
+      </notes>
+      <segment>
+        <source>That code did not match — try the current code.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.verify">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:111</note>
+        <note category="meaning">Error when the enrollment passcode did not verify</note>
+      </notes>
+      <segment>
+        <source>Could not verify the code.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.noWebauthn">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:124</note>
+        <note category="meaning">Error when passkey enrollment is attempted in a browser without WebAuthn</note>
+      </notes>
+      <segment>
+        <source>This browser does not support passkeys. Use an authenticator app instead.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.startWebauthn">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:136</note>
+        <note category="meaning">Error when the server would not begin passkey registration</note>
+      </notes>
+      <segment>
+        <source>Could not start passkey registration.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.passkeyDuplicate">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:149</note>
+        <note category="meaning">Error when the offered passkey is already enrolled</note>
+      </notes>
+      <segment>
+        <source>That passkey is already registered.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.verifyWebauthn">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:151</note>
+        <note category="meaning">Error when the server rejected the new passkey</note>
+      </notes>
+      <segment>
+        <source>Passkey registration could not be verified.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.webauthnCancelled">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:182</note>
+        <note category="meaning">Error when the user dismissed the browser&apos;s passkey prompt during enrollment</note>
+      </notes>
+      <segment>
+        <source>Passkey registration was cancelled or timed out.</source>
+      </segment>
+    </unit>
+    <unit id="mfaEnroll.error.webauthnUnknown">
+      <notes>
+        <note category="location">src/app/mfa-enroll.component.ts:185</note>
+        <note category="meaning">Fallback error when the browser could not create a passkey</note>
+      </notes>
+      <segment>
+        <source>Could not create a passkey.</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.heading">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:2,6</note>
+        <note category="meaning">Heading of the account security page</note>
+      </notes>
+      <segment>
+        <source>Security</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.loading">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:7,11</note>
+        <note category="meaning">Announced while the security settings are loading</note>
+      </notes>
+      <segment>
+        <source> Loading your security settings… </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.dark">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:12,17</note>
+        <note category="meaning">Shown when the two-factor feature is switched off platform-wide</note>
+      </notes>
+      <segment>
+        <source> Two-factor authentication is not enabled yet. There is nothing to manage here until it has been turned on. </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.back">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:15,18</note>
+        <note category="meaning">Link back to the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factors.heading">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:23,25</note>
+        <note category="meaning">Heading above the list of enrolled two-factor methods</note>
+      </notes>
+      <segment>
+        <source>Two-factor methods</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factors.empty">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:26,31</note>
+        <note category="meaning">Shown when the account has no two-factor methods</note>
+      </notes>
+      <segment>
+        <source> You have no two-factor methods yet. Add one to protect your account. </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factor.added">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:34,35</note>
+        <note category="meaning">Enrollment date of a two-factor method. {{PLACEHOLDER}} is the date</note>
+      </notes>
+      <segment>
+        <source>added <ph id="0" equiv="INTERPOLATION" disp="{{ f.createdAt }}"/></source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factor.pending">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:35,41</note>
+        <note category="meaning">Marker on a two-factor method that was started but never verified</note>
+      </notes>
+      <segment>
+        <source>(pending)</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factor.remove">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:46,54</note>
+        <note category="meaning">Button removing one two-factor method</note>
+      </notes>
+      <segment>
+        <source> Remove </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.add">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:56,62</note>
+        <note category="meaning">Link to the two-factor enrollment wizard</note>
+      </notes>
+      <segment>
+        <source> Add a method </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.regenerate">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:67,70</note>
+        <note category="meaning">Button issuing a fresh set of recovery codes</note>
+      </notes>
+      <segment>
+        <source> Regenerate recovery codes </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.regenerate.help">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:71,79</note>
+        <note category="meaning">Help text under the regenerate recovery codes button</note>
+      </notes>
+      <segment>
+        <source> Regenerating replaces your old recovery codes. This needs a fresh security check. </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.newRecovery.region.label">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:81,84</note>
+        <note category="meaning">Accessible name of the regenerated recovery-codes region</note>
+      </notes>
+      <segment>
+        <source>New recovery codes — save these now, they are shown only once</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.newRecovery.help">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:84,87</note>
+        <note category="meaning">Warning above the regenerated recovery codes</note>
+      </notes>
+      <segment>
+        <source> Your new recovery codes — save them now. <pc id="0" equivStart="START_TAG_STRONG" equivEnd="CLOSE_TAG_STRONG" type="other" dispStart="&lt;strong&gt;" dispEnd="&lt;/strong&gt;">They are shown only once</pc> and your old codes no longer work. </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.error.load">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:55</note>
+        <note category="meaning">Error shown when the security settings could not be fetched</note>
+      </notes>
+      <segment>
+        <source>Could not load your security settings.</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factorType.totp">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:66</note>
+        <note category="meaning">Name of the authenticator-app two-factor method</note>
+      </notes>
+      <segment>
+        <source>Authenticator app</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factorType.webauthn">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:67</note>
+        <note category="meaning">Name of the passkey two-factor method</note>
+      </notes>
+      <segment>
+        <source>Passkey</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.factor.remove.label">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:72</note>
+        <note category="description">Accessible name of a factor&apos;s remove button. Placeholders are the method name and its enrollment date</note>
+      </notes>
+      <segment>
+        <source>Remove <ph id="0" equiv="type" disp="this.typeLabel(f.type)"/> added <ph id="1" equiv="added" disp="f.createdAt"/></source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.error.remove">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:91</note>
+        <note category="meaning">Error shown when removing a two-factor method failed</note>
+      </notes>
+      <segment>
+        <source>Could not remove that factor.</source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.error.regenerate">
+      <notes>
+        <note category="location">src/app/mfa-security.component.ts:112</note>
+        <note category="meaning">Error shown when regenerating recovery codes failed</note>
+      </notes>
+      <segment>
+        <source>Could not regenerate recovery codes.</source>
+      </segment>
+    </unit>
+    <unit id="rolePicker.intro">
+      <notes>
+        <note category="location">src/app/role-picker.component.html:9,18</note>
+        <note category="meaning">Instruction above the passwordless local-role cards</note>
+      </notes>
+      <segment>
+        <source> Choose a local role to sign in. These roles are provisioned on this machine by your Studio agent — pick one to sign in without a password. </source>
+      </segment>
+    </unit>
+    <unit id="rolePicker.signingIn">
+      <notes>
+        <note category="location">src/app/role-picker.component.html:29,36</note>
+        <note category="meaning">Status shown on a role card while its sign-in is in flight</note>
+      </notes>
+      <segment>
+        <source>Signing in…</source>
+      </segment>
+    </unit>
+  </file>
+</xliff>

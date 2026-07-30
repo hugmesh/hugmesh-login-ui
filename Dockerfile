@@ -1,0 +1,78 @@
+# hugmesh-login-ui — builds the Login native-federation REMOTE
+# (src → dist/login) and serves it via nginx with CORS so the
+# hugmesh.systems host can fetch its remoteEntry.json cross-origin.
+# Deployed to the hugmesh-frontend namespace, fronted by the fe-gateway at
+# /login.
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --no-audit --no-fund
+COPY . .
+
+# WHICH TRANSLATION CATALOGS THIS IMAGE SHIPS.
+#
+# Comma-separated locale tags, forwarded by the Studio from its `web_locales`
+# field (--web-locales). EMPTY (the default) => English-only: zero catalog files
+# in the image and zero catalog requests at runtime. English is the SOURCE
+# language — its text is compiled into the bundle — so English needs no catalog
+# and the default is genuinely the smallest artifact, not a special case.
+#
+# This is deliberately a BUILD ARG and not a runtime env var like SNAP_OIDC_*.
+# Which catalogs SHIP is a build-time fact: an env var picking among catalogs
+# already baked into every image would leave every image byte-identical, i.e. a
+# knob wired to nothing. (Which catalog a given BROWSER loads is a separate,
+# runtime question, answered by locale detection in src/app/i18n/locale.ts.)
+#
+# The difference is visible without reading any source:
+#   docker run --rm <image> ls -R /usr/share/nginx/html/i18n
+#     web_locales=()        -> no such directory
+#     web_locales=("en-XA") -> i18n/en-XA.json
+ARG SNAP_WEB_LOCALES=""
+ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
+
+# Served STANDALONE under the /login path prefix by the fe-gateway (Path=/login/**),
+# so the app base href — and thus every relative bundle + snap-config.js URL — must
+# be /login/. A root base (/) makes the browser fetch bundles at the origin root,
+# which the fe-gateway routes to the systems-web HOST (not this container), so they
+# 404 and Angular never boots. Pairs with the fe-gateway StripPrefix=1 on the /login
+# route (hugmesh-generator) which maps /login/<asset> back to the webroot here.
+#
+# The three i18n steps around the build (see package.json `build:image`):
+#   i18n:check    — fails the build on a module-scope $localize, an incomplete or
+#                   stale catalog, or a second '@angular/localize/init' importer.
+#                   Each of those renders a silently half-translated page, so none
+#                   may be left to review or to runtime.
+#   i18n:prepare  — bakes SNAP_WEB_LOCALES into src/app/i18n/shipped-locales.ts,
+#                   so the bundle knows which catalogs exist and never requests
+#                   one that was not shipped. Fails loudly on a requested locale
+#                   with no catalog, rather than shipping an image that silently
+#                   serves English to everyone who asked for it.
+#   i18n:catalogs — converts the selected src/locale/messages.<loc>.xlf into
+#                   dist/login/browser/i18n/<loc>.json (Node-only
+#                   @angular/localize/tools; never reaches a browser).
+# The catalogs land in dist/login/browser, so the existing COPY below carries
+# them into the image with no extra COPY and no nginx change: nginx.conf's
+# catch-all `location /` already serves and CORS-allows them, exactly as it does
+# remoteEntry.json.
+RUN npm run i18n:check \
+ && npm run i18n:prepare \
+ && npm run build:login -- --base-href=/login/ \
+ && npm run i18n:catalogs
+
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist/login/browser /usr/share/nginx/html
+# Runtime OIDC config injection: the nginx image auto-runs every executable
+# /docker-entrypoint.d/*.sh at container start (before nginx forks). This one
+# writes /usr/share/nginx/html/snap-config.js from SNAP_OIDC_* / SNAP_BFF_URL
+# env, so the (dark-by-default) Casdoor web login can be turned on per-env
+# without rebuilding. With no env set it emits empty/false => the SPA stays DARK.
+COPY docker-entrypoint.d/40-snap-config.sh /docker-entrypoint.d/40-snap-config.sh
+RUN chmod +x /docker-entrypoint.d/40-snap-config.sh
+# Runtime THEME injection, same mechanism: writes snap-theme.css from
+# SNAP_THEME_CSS (already-derived --hug-* token text; the derivation lives in
+# hugmesh-generator studio core/theme.py — this side does zero colour maths).
+# With no env set it writes an EMPTY file => the shipped default brand renders.
+COPY docker-entrypoint.d/50-snap-theme.sh /docker-entrypoint.d/50-snap-theme.sh
+RUN chmod +x /docker-entrypoint.d/50-snap-theme.sh
+EXPOSE 80

@@ -1,0 +1,166 @@
+<section class="hug-mfa" data-testid="mfa-enroll-view" aria-labelledby="hug-mfa-enroll-heading">
+  <h2 id="hug-mfa-enroll-heading" i18n="Heading of the two-factor enrollment wizard|@@mfaEnroll.heading">Set up two-factor authentication</h2>
+
+  @if (error()) {
+    <p class="mfa-error" data-testid="mfa-enroll-error" role="alert" aria-live="assertive">
+      {{ error() }}
+    </p>
+  }
+
+  @switch (step()) {
+    @case ('choose') {
+      <p data-testid="mfa-enroll-intro" i18n="Introduction on the two-factor enrollment wizard|@@mfaEnroll.intro">
+        Add a second step to your sign-in. Choose an authenticator app (a 6-digit
+        code) or a passkey (a device fingerprint, face, or security key).
+      </p>
+      <div class="mfa-actions">
+        <button
+          type="button"
+          class="mfa-btn primary"
+          data-testid="mfa-choose-totp"
+          [disabled]="busy()"
+          (click)="startTotp()"
+          i18n="Button choosing authenticator-app enrollment|@@mfaEnroll.choose.totp"
+        >
+          Use an authenticator app
+        </button>
+        <button
+          type="button"
+          class="mfa-btn"
+          data-testid="mfa-choose-webauthn"
+          aria-describedby="hug-mfa-webauthn-help"
+          [disabled]="busy() || !webauthnAvailable"
+          (click)="startWebauthn()"
+          i18n="Button choosing passkey enrollment|@@mfaEnroll.choose.webauthn"
+        >
+          Add a passkey
+        </button>
+      </div>
+      <p class="mfa-help" id="hug-mfa-webauthn-help" data-testid="mfa-webauthn-help">
+        @if (webauthnAvailable) {
+          <ng-container i18n="Help text under the passkey button when the browser supports passkeys|@@mfaEnroll.webauthn.help.available">A passkey uses your device's fingerprint, face, or a security key. Your
+          browser will prompt you to confirm.</ng-container>
+        } @else {
+          <ng-container i18n="Help text under the passkey button when the browser cannot do passkeys|@@mfaEnroll.webauthn.help.unavailable">This browser does not support passkeys — use an authenticator app instead.</ng-container>
+        }
+      </p>
+    }
+
+    @case ('totp-show') {
+      <h3 i18n="Heading of the TOTP QR-code step|@@mfaEnroll.totp.heading">Scan this with your authenticator app</h3>
+      @if (qrMatrix(); as matrix) {
+        <div
+          class="mfa-qr"
+          data-testid="mfa-qr"
+          role="img"
+          i18n-aria-label="Accessible name of the TOTP QR code image|@@mfaEnroll.qr.label"
+          aria-label="QR code to add this account to your authenticator app. If you cannot scan it, enter the setup key shown below."
+          [style.gridTemplateColumns]="'repeat(' + matrix.length + ', 1fr)'"
+        >
+          @for (row of matrix; track $index) {
+            @for (cell of row; track $index) {
+              <span class="mfa-qr-cell" [class.dark]="cell"></span>
+            }
+          }
+        </div>
+      } @else {
+        <p class="mfa-help" data-testid="mfa-qr-fallback" i18n="Shown when the QR code could not be rendered|@@mfaEnroll.qr.fallback">
+          Could not draw the QR code. Enter the setup key below in your
+          authenticator app instead.
+        </p>
+      }
+
+      <p class="mfa-secret-label" i18n="Label above the TOTP setup key|@@mfaEnroll.secret.label">Setup key (if you can't scan):</p>
+      <p class="mfa-secret" data-testid="mfa-secret" aria-describedby="hug-mfa-secret-help">
+        <code>{{ secret() }}</code>
+      </p>
+      <p class="mfa-help" id="hug-mfa-secret-help" i18n="Help text under the TOTP setup key|@@mfaEnroll.secret.help">
+        Type this key into your authenticator app, then enter the 6-digit code it
+        shows. This key is shown only once.
+      </p>
+
+      <form class="mfa-verify" (ngSubmit)="verifyTotp()">
+        <label for="hug-mfa-passcode" i18n="Label for the TOTP verification code field|@@mfaEnroll.passcode.label">6-digit code</label>
+        <input
+          id="hug-mfa-passcode"
+          name="passcode"
+          data-testid="mfa-passcode"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          [(ngModel)]="passcode"
+          aria-describedby="hug-mfa-passcode-help"
+        />
+        <p class="mfa-help" id="hug-mfa-passcode-help" i18n="Help text under the TOTP verification code field|@@mfaEnroll.passcode.help">
+          Enter the current 6-digit code from your authenticator app to finish.
+        </p>
+        <div class="mfa-actions">
+          <button
+            type="submit"
+            class="mfa-btn primary"
+            data-testid="mfa-verify-totp"
+            [disabled]="busy() || !passcodeValid()"
+            i18n="Button that verifies the TOTP code and enables two-factor|@@mfaEnroll.verify"
+          >
+            Verify and enable
+          </button>
+          <button type="button" class="mfa-btn" data-testid="mfa-cancel" (click)="reset()"
+            i18n="Button abandoning the two-factor enrollment|@@mfaEnroll.cancel">
+            Cancel
+          </button>
+        </div>
+      </form>
+    }
+
+    @case ('recovery') {
+      <h3 i18n="Heading of the recovery-codes step|@@mfaEnroll.recovery.heading">Save your recovery codes</h3>
+      <section
+        class="mfa-recovery"
+        data-testid="mfa-recovery"
+        role="region"
+        i18n-aria-label="Accessible name of the recovery-codes region|@@mfaEnroll.recovery.region.label"
+        aria-label="Recovery codes — save these now, they are shown only once"
+      >
+        <p class="mfa-help" i18n="Warning above the newly issued recovery codes|@@mfaEnroll.recovery.help">
+          Save these codes somewhere safe. Each can be used once if you lose your
+          authenticator. <strong>They are shown only once.</strong>
+        </p>
+        <ul class="mfa-codes" data-testid="mfa-recovery-codes">
+          @for (code of recoveryCodes(); track code) {
+            <li><code>{{ code }}</code></li>
+          }
+        </ul>
+      </section>
+      <div class="mfa-actions">
+        <button type="button" class="mfa-btn primary" data-testid="mfa-recovery-done" (click)="finish()"
+          i18n="Button confirming the recovery codes were saved|@@mfaEnroll.recovery.done">
+          I've saved them — continue
+        </button>
+      </div>
+    }
+
+    @case ('done') {
+      <h3 i18n="Heading shown after a passkey was registered|@@mfaEnroll.done.heading">Passkey added</h3>
+      <p data-testid="mfa-webauthn-done" i18n="Confirmation shown after a passkey was registered|@@mfaEnroll.done.body">
+        Your passkey is registered. You can manage your factors in the security
+        settings.
+      </p>
+      <div class="mfa-actions">
+        <button type="button" class="mfa-btn primary" data-testid="mfa-done" (click)="finish()"
+          i18n="Button closing the two-factor enrollment wizard|@@mfaEnroll.done.button">
+          Done
+        </button>
+      </div>
+    }
+
+    @case ('dark') {
+      <p class="mfa-help" data-testid="mfa-dark"
+         i18n="Shown when the two-factor feature is switched off platform-wide|@@mfaEnroll.dark">
+        Two-factor authentication is not enabled yet. Check back once it has been
+        turned on for your account.
+      </p>
+      <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaEnroll.back">Back to sign in</a></p>
+    }
+  }
+</section>

@@ -1,0 +1,26 @@
+@use 'tokens' as t;
+
+:host {
+  display: block;
+  min-height: 100vh;
+  background: var(--hug-bg-0);
+  color: var(--hug-text);
+}
+
+// Skip-to-content link for the standalone dev shell — hidden until focused,
+// then revealed (the .skip reveal rules live in the global styles.scss).
+.skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+main {
+  display: block;
+}

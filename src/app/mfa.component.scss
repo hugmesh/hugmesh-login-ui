@@ -1,0 +1,231 @@
+@use 'tokens' as t;
+
+// Shared styling for the MFA surface (enroll wizard, step-up challenge, security
+// section). All colour cues are paired with a non-colour cue (border, weight,
+// text) and use the AAA --hug-* contract vars so the dark shell stays legible.
+.hug-mfa {
+  display: block;
+  max-width: 30rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+
+  h2 {
+    margin: 0 0 0.75rem;
+  }
+
+  h3 {
+    margin: 1.25rem 0 0.5rem;
+  }
+
+  // Announced error (role=alert). Heavy left border so the cue is visible to
+  // colour-blind users too; --hug-error reads at AA on the dark shell.
+  .mfa-error {
+    margin: 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    border-left: 4px solid var(--hug-error);
+    color: var(--hug-error);
+    font-weight: 700;
+  }
+
+  .mfa-ok {
+    margin: 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    border-left: 4px solid var(--hug-success);
+    color: var(--hug-success);
+    font-weight: 700;
+  }
+
+  // Helptext (aria-describedby targets). --hug-text-muted is AAA on the dark shell.
+  .mfa-help {
+    margin: 0.35rem 0 1rem;
+    color: var(--hug-text-muted);
+    font-size: 0.875rem;
+  }
+
+  .mfa-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .mfa-btn {
+    display: inline-block;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--hug-border);
+    border-radius: t.$radius-sm;
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover:not([disabled]) {
+      border-color: var(--hug-accent);
+    }
+
+    // A visible focus ring (never rely on the default outline being removed).
+    &:focus-visible {
+      outline: 2px solid var(--hug-accent-soft);
+      outline-offset: 2px;
+    }
+
+    &[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &.primary {
+      border-color: var(--hug-accent);
+      background: var(--hug-accent);
+      // --hug-accent-on, never a hardcoded hex: the hardcoded #0a0a12 measured
+      // 4.10:1 on the shipped accent — an AA FAIL — and on an injected accent it
+      // could land anywhere. The token is auto-picked pure black/white by
+      // luminance, which is >= 4.5:1 for every sRGB accent (white = 4.81:1 here).
+      color: var(--hug-accent-on, #ffffff);
+      font-weight: 700;
+    }
+
+    &.danger {
+      border-color: var(--hug-error);
+      color: var(--hug-error);
+    }
+  }
+
+  // The QR matrix: a CSS grid of square cells. Each cell is dark or light; the
+  // whole grid carries a text alternative (role=img + aria-label) and the secret
+  // is ALSO shown as copyable text, so a QR render failure never blocks setup.
+  .mfa-qr {
+    display: grid;
+    width: 13rem;
+    max-width: 100%;
+    margin: 0.5rem 0 1rem;
+    padding: 0.5rem;
+    background: #ffffff; // a QR must be dark-on-light to scan
+    aspect-ratio: 1 / 1;
+
+    .mfa-qr-cell {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #ffffff;
+
+      &.dark {
+        background: #000000;
+      }
+    }
+  }
+
+  .mfa-secret-label {
+    margin: 0.5rem 0 0.25rem;
+    font-weight: 700;
+  }
+
+  .mfa-secret code {
+    display: inline-block;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--hug-border);
+    border-radius: t.$radius-sm;
+    background: var(--hug-bg-1);
+    word-break: break-all;
+  }
+
+  .mfa-verify {
+    display: block;
+    margin-top: 1rem;
+
+    label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      max-width: 12rem;
+      padding: 0.5rem;
+      border: 1px solid var(--hug-border);
+      border-radius: t.$radius-sm;
+      background: var(--hug-bg-1);
+      color: var(--hug-text);
+      font: inherit;
+
+      &:focus-visible {
+        outline: 2px solid var(--hug-accent-soft);
+        outline-offset: 1px;
+      }
+    }
+  }
+
+  .mfa-methods {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--hug-border);
+    border-radius: t.$radius-sm;
+
+    legend {
+      padding: 0 0.5rem;
+      font-weight: 700;
+    }
+
+    label {
+      display: block;
+      margin: 0.35rem 0;
+    }
+  }
+
+  // Display-once codes region (recovery / regenerate). Bordered + monospace list
+  // so the codes are unambiguous; the region is announced (role=region + label).
+  .mfa-recovery {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--hug-accent);
+    border-radius: t.$radius-sm;
+    background: var(--hug-bg-1);
+  }
+
+  .mfa-codes {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+
+    li {
+      margin: 0.2rem 0;
+    }
+
+    code {
+      font-size: 1.05rem;
+      letter-spacing: 0.05em;
+    }
+  }
+
+  .mfa-factor-list {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mfa-factor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--hug-border);
+
+    .mfa-factor-type {
+      font-weight: 700;
+    }
+
+    .mfa-factor-meta {
+      color: var(--hug-text-muted);
+      font-size: 0.875rem;
+    }
+
+    .mfa-factor-pending {
+      color: var(--hug-text-muted);
+    }
+
+    .mfa-btn {
+      margin-left: auto;
+    }
+  }
+}

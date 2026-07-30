@@ -1,0 +1,35 @@
+<div
+  class="hug-role-picker"
+  data-testid="role-picker"
+  role="group"
+  aria-labelledby="hug-role-picker-intro"
+>
+  <p class="form-help" id="hug-role-picker-intro" data-testid="role-picker-intro"
+     i18n="Instruction above the passwordless local-role cards|@@rolePicker.intro">
+    Choose a local role to sign in. These roles are provisioned on this machine by
+    your Studio agent — pick one to sign in without a password.
+  </p>
+
+  <ul class="role-list">
+    @for (role of roles(); track role.id) {
+      <li>
+        <button
+          type="button"
+          class="role-card"
+          [attr.data-testid]="'role-card-' + role.id"
+          [disabled]="busyRoleId() !== null"
+          [attr.aria-busy]="busyRoleId() === role.id ? 'true' : null"
+          (click)="pick.emit(role.id)"
+        >
+          <span class="role-label">{{ role.label }}</span>
+          @if (role.brand) {
+            <span class="role-brand">{{ role.brand }}</span>
+          }
+          @if (busyRoleId() === role.id) {
+            <span class="role-status" i18n="Status shown on a role card while its sign-in is in flight|@@rolePicker.signingIn">Signing in…</span>
+          }
+        </button>
+      </li>
+    }
+  </ul>
+</div>

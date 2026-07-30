@@ -1,0 +1,228 @@
+<hug-login-banner />
+
+<section class="hug-login" data-testid="login-view" aria-labelledby="hug-login-heading">
+  <h2 id="hug-login-heading" i18n="Heading of the sign-in page|@@login.heading">Sign in to hugmesh.systems</h2>
+
+  @if (!pending()) {
+    @if (!mfaRequired()) {
+      @if (showRolePicker()) {
+        <!-- PASSWORDLESS local-role picker: the local Studio agent
+             (127.0.0.1:27621) advertised one or more roles, so the sign-in slot
+             renders the picker INSTEAD of the password form. Picking a card runs
+             pickRole() → BffService.loginLocal (single-use handoff → the sibling
+             /bff/login/local endpoint), which mints the SAME bff_ cookie. If the
+             agent is absent/empty this branch is skipped and the normal password
+             form below renders unchanged. -->
+        <hug-role-picker
+          [roles]="localRoles()"
+          [busyRoleId]="localBusyRole()"
+          (pick)="pickRole($event)"
+        />
+      } @else {
+      <!-- OUR OWN username/password form is the only login surface. It POSTs
+           { username, password } to /bff/login (credentials: include); the BFF
+           mints the opaque bff_ cookie server-side. The browser is NEVER
+           redirected to Casdoor and never receives a token. -->
+      <p class="form-help" id="hug-login-intro" data-testid="login-intro"
+         i18n="Instruction under the sign-in heading|@@login.intro">
+        Sign in with your hugmesh.systems username and password.
+      </p>
+
+      <form (ngSubmit)="submit()">
+        <label for="hug-login-username" i18n="Label for the username field|@@login.username.label">Username</label>
+        <input
+          id="hug-login-username"
+          name="username"
+          type="text"
+          autocomplete="username"
+          data-testid="login-username"
+          [(ngModel)]="username"
+          i18n-placeholder="Placeholder in the username field|@@login.username.placeholder"
+          placeholder="your username"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="
+            (error() ? 'hug-login-error ' : '') + 'hug-login-intro'
+          "
+        />
+
+        <label for="hug-login-password" i18n="Label for the password field|@@login.password.label">Password</label>
+        <input
+          id="hug-login-password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          data-testid="login-password"
+          [(ngModel)]="password"
+          i18n-placeholder="Placeholder in the password field|@@login.password.placeholder"
+          placeholder="your password"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="
+            (error() ? 'hug-login-error ' : '') + 'hug-login-intro'
+          "
+        />
+
+        <button
+          type="submit"
+          data-testid="login-submit"
+          aria-describedby="hug-login-intro"
+          [disabled]="busy() || !canSubmit()"
+          i18n="Submit button on the sign-in form|@@login.submit"
+        >
+          Sign in
+        </button>
+      </form>
+      }
+    } @else {
+      <!-- MFA challenge: the BFF answered mfaRequired:true (no session minted).
+           Collect the passcode and RE-POST the same /bff/login call. -->
+      <p class="form-help" id="hug-login-mfa-intro" data-testid="login-mfa-intro"
+         i18n="Instruction shown when sign-in needs a second factor|@@login.mfa.intro">
+        Enter the verification code from your authenticator app to finish signing
+        in.
+      </p>
+
+      <form (ngSubmit)="submit()">
+        <label for="hug-login-mfa-code" i18n="Label for the two-factor passcode field|@@login.mfa.code.label">Verification code</label>
+        <input
+          id="hug-login-mfa-code"
+          name="mfaCode"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          data-testid="login-mfa-code"
+          [(ngModel)]="mfaCode"
+          i18n-placeholder="Placeholder in the two-factor passcode field|@@login.mfa.code.placeholder"
+          placeholder="6-digit code"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="
+            (error() ? 'hug-login-error ' : '') + 'hug-login-mfa-intro'
+          "
+        />
+
+        <button
+          type="submit"
+          data-testid="login-mfa-submit"
+          aria-describedby="hug-login-mfa-intro"
+          [disabled]="busy() || !mfaCode.trim()"
+          i18n="Submit button on the two-factor passcode form|@@login.mfa.submit"
+        >
+          Verify
+        </button>
+      </form>
+    }
+  } @else {
+    <div data-testid="complete-view">
+      <p i18n="Greeting on the complete-registration card. {{PLACEHOLDER}} is the user's account label|@@login.complete.greeting">
+        Account created for
+        <strong
+          data-testid="complete-greeting"
+          [attr.aria-label]="greetingNeedsAriaLabel() ? greetingAccessibleName() : null"
+          >{{ session.session()?.label }}</strong
+        >. Finish setting up your account to unlock Matrix &amp; Mastodon.
+      </p>
+
+      <fieldset>
+        <legend i18n="Legend of the name fieldset on the complete-registration card|@@login.complete.fieldset.legend">Your name</legend>
+
+        <label for="hug-register-display-name" i18n="Label for the display-name field|@@login.complete.displayName.label">Display name</label>
+        <input
+          id="hug-register-display-name"
+          name="displayName"
+          type="text"
+          autocomplete="name"
+          data-testid="register-display-name"
+          [ngModel]="displayName()"
+          (ngModelChange)="displayName.set($event)"
+          i18n-placeholder="Placeholder in the display-name field|@@login.complete.displayName.placeholder"
+          placeholder="How your name appears to others"
+          aria-describedby="hug-register-display-name-help"
+        />
+        <p
+          class="field-help"
+          id="hug-register-display-name-help"
+          data-testid="register-display-name-help"
+          i18n="Help text under the display-name field|@@login.complete.displayName.help"
+        >
+          This is the name other people see on Matrix and Mastodon. You can use
+          any characters; if they cannot be read aloud, we will ask for a plain
+          version below. Required to finish.
+        </p>
+
+        @if (needsScreenReaderName()) {
+          <label for="hug-register-screen-reader-name"
+            i18n="Label for the ASCII screen-reader name field|@@login.complete.screenReaderName.label"
+            >Screen-reader name (ASCII)</label>
+          <input
+            id="hug-register-screen-reader-name"
+            name="screenReaderName"
+            type="text"
+            autocomplete="off"
+            data-testid="register-screen-reader-name"
+            [ngModel]="screenReaderName()"
+            (ngModelChange)="screenReaderName.set($event)"
+            [attr.aria-invalid]="screenReaderNameValid() ? null : 'true'"
+            aria-describedby="hug-register-screen-reader-help"
+            i18n-placeholder="Placeholder in the ASCII screen-reader name field|@@login.complete.screenReaderName.placeholder"
+            placeholder="ASCII version of your name"
+          />
+          <p
+            class="field-help"
+            id="hug-register-screen-reader-help"
+            data-testid="register-screen-reader-help"
+          >
+            {{ screenReaderPrompt }}
+          </p>
+        }
+      </fieldset>
+
+      <p class="field-help" id="hug-register-complete-help" data-testid="register-complete-help"
+         i18n="Help text describing what the Complete registration button does|@@login.complete.help">
+        Saves your name and unlocks Matrix &amp; Mastodon. You can change your
+        display name later from your profile.
+      </p>
+      <button
+        type="button"
+        data-testid="login-complete"
+        [disabled]="completeBlocked()"
+        [attr.aria-describedby]="completeDescribedBy()"
+        (click)="complete()"
+        i18n="Button that finishes registration|@@login.complete.submit"
+      >
+        Complete registration
+      </button>
+    </div>
+  }
+
+  @if (error()) {
+    <p
+      class="error"
+      id="hug-login-error"
+      data-testid="login-error"
+      role="alert"
+      aria-live="assertive"
+    >
+      {{ error() }}
+    </p>
+  }
+
+  <p class="appeal-link"
+     i18n="Link to the appeal page, shown under the sign-in form|@@login.appealLink">
+    Account suspended or banned?
+    <a routerLink="appeal" data-testid="login-appeal-link">Appeal or contact support</a>
+  </p>
+
+  @if (session.fullyRegistered()) {
+    <!-- The self-service MFA/security surface is only meaningful once
+         registration is complete -- mirrors the SAME session/feature signal
+         (SessionService.fullyRegistered()) the host's registeredGuard uses to
+         gate the Matrix/Mastodon micro-frontends, so this entry appears/
+         disappears in lockstep with the rest of the account surface. The
+         surface itself still ships dark (a 503 flips it to "MFA not enabled")
+         until the admin-bff enforcement flip -- this link just makes it
+         discoverable once a session can reach it. -->
+    <p class="account-links">
+      <a routerLink="security" data-testid="login-security-link"
+         i18n="Link to the account security / MFA page|@@login.securityLink">Account security</a>
+    </p>
+  }
+</section>

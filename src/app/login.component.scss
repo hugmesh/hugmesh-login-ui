@@ -1,0 +1,96 @@
+@use 'tokens' as t;
+
+.hug-login {
+  display: block;
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+
+  fieldset {
+    margin: 0.5rem 0;
+    border: 1px solid var(--hug-border);
+    border-radius: t.$radius-sm;
+  }
+
+  legend {
+    padding: 0 0.25rem;
+    font-weight: 700;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  input {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.5rem;
+
+    // WCAG 1.4.1 — invalid fields are flagged beyond colour (a heavier border
+    // outline) so the cue is visible to colour-blind users too.
+    &[aria-invalid='true'] {
+      outline: 2px solid var(--hug-error);
+      outline-offset: 1px;
+    }
+  }
+
+  // --hug-error (#ff6b6b) reads at AA against the dark shell background — used
+  // for the role=alert error text. Replaces #b00 (fails contrast on dark).
+  .error {
+    margin-top: 0.75rem;
+    color: var(--hug-error);
+    font-weight: 700;
+  }
+
+  // Cross-cutting HELP-TEXT convention: a control gets an aria-describedby
+  // pointing at a <p class=field-help> that says, concisely, what it does + how
+  // to use it (e.g. register-vs-sign-in, the display-name rules, the non-ASCII
+  // screen-reader prompt). --hug-text-muted is AAA on the dark shell, so the
+  // guidance is legible WITHOUT relying on colour alone; the size is a relative
+  // 0.875rem (em-based) so it scales with the user's browser/zoom text size.
+  .field-help {
+    margin: -0.25rem 0 0.5rem;
+    color: var(--hug-text-muted);
+    font-size: 0.875rem;
+  }
+
+  // Section-level help: the lead-in that explains the whole register-vs-sign-in
+  // flow before the Google/Discord fieldsets (each fieldset aria-describedby's
+  // it). Slightly larger than field-help; same AAA muted colour + em sizing.
+  .form-help {
+    margin: 0 0 1rem;
+    color: var(--hug-text-muted);
+    font-size: 0.9375rem;
+
+    strong {
+      color: var(--hug-text);
+    }
+  }
+
+  // A blocked Complete-registration button stays in the DOM (with helptext via
+  // aria-describedby) rather than disappearing — the disabled cue is dimming +
+  // the not-allowed cursor, never colour alone.
+  button[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  // Footer link to the appeal/contact page for a suspended or banned visitor.
+  // --hug-text-muted is AAA on the dark shell so the lead-in text stays legible.
+  .appeal-link {
+    margin-top: 1.25rem;
+    font-size: 0.875rem;
+    color: var(--hug-text-muted);
+  }
+
+  // Footer link into the self-service MFA/security surface (/login/security).
+  // Same treatment as .appeal-link -- only shown once fullyRegistered() gates
+  // it in, so it sits right below the appeal link in the same footer group.
+  .account-links {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--hug-text-muted);
+  }
+}

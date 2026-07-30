@@ -1,0 +1,95 @@
+<section class="hug-mfa" data-testid="mfa-security-view" aria-labelledby="hug-mfa-security-heading">
+  <h2 id="hug-mfa-security-heading" i18n="Heading of the account security page|@@mfaSecurity.heading">Security</h2>
+
+  @if (!loaded()) {
+    <p class="mfa-help" data-testid="mfa-security-loading" role="status" aria-live="polite"
+       i18n="Announced while the security settings are loading|@@mfaSecurity.loading">
+      Loading your security settings…
+    </p>
+  } @else if (dark()) {
+    <p class="mfa-help" data-testid="mfa-security-dark"
+       i18n="Shown when the two-factor feature is switched off platform-wide|@@mfaSecurity.dark">
+      Two-factor authentication is not enabled yet. There is nothing to manage
+      here until it has been turned on.
+    </p>
+    <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaSecurity.back">Back to sign in</a></p>
+  } @else {
+    @if (error()) {
+      <p class="mfa-error" data-testid="mfa-security-error" role="alert" aria-live="assertive">
+        {{ error() }}
+      </p>
+    }
+
+    <h3 i18n="Heading above the list of enrolled two-factor methods|@@mfaSecurity.factors.heading">Two-factor methods</h3>
+    @if (factors().length === 0) {
+      <p data-testid="mfa-security-empty" i18n="Shown when the account has no two-factor methods|@@mfaSecurity.factors.empty">
+        You have no two-factor methods yet. Add one to protect your account.
+      </p>
+    } @else {
+      <ul class="mfa-factor-list" data-testid="mfa-factor-list">
+        @for (f of factors(); track f.id) {
+          <li class="mfa-factor" data-testid="mfa-factor">
+            <span class="mfa-factor-type">{{ typeLabel(f.type) }}</span>
+            <span class="mfa-factor-meta">
+              <ng-container i18n="Enrollment date of a two-factor method. {{PLACEHOLDER}} is the date|@@mfaSecurity.factor.added">added {{ f.createdAt }}</ng-container>
+              @if (!f.enabled) { <em class="mfa-factor-pending" i18n="Marker on a two-factor method that was started but never verified|@@mfaSecurity.factor.pending">(pending)</em> }
+            </span>
+            <button
+              type="button"
+              class="mfa-btn danger"
+              data-testid="mfa-factor-remove"
+              [attr.aria-label]="removeLabel(f)"
+              [disabled]="busy()"
+              (click)="remove(f)"
+              i18n="Button removing one two-factor method|@@mfaSecurity.factor.remove"
+            >
+              Remove
+            </button>
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="mfa-actions">
+      <a class="mfa-btn primary" routerLink="/login/mfa/enroll" data-testid="mfa-security-add"
+        i18n="Link to the two-factor enrollment wizard|@@mfaSecurity.add">
+        Add a method
+      </a>
+      <button
+        type="button"
+        class="mfa-btn"
+        data-testid="mfa-security-regenerate"
+        aria-describedby="hug-mfa-regen-help"
+        [disabled]="busy()"
+        (click)="regenerate()"
+        i18n="Button issuing a fresh set of recovery codes|@@mfaSecurity.regenerate"
+      >
+        Regenerate recovery codes
+      </button>
+    </div>
+    <p class="mfa-help" id="hug-mfa-regen-help" i18n="Help text under the regenerate recovery codes button|@@mfaSecurity.regenerate.help">
+      Regenerating replaces your old recovery codes. This needs a fresh security
+      check.
+    </p>
+
+    @if (newRecoveryCodes().length > 0) {
+      <section
+        class="mfa-recovery"
+        data-testid="mfa-new-recovery"
+        role="region"
+        i18n-aria-label="Accessible name of the regenerated recovery-codes region|@@mfaSecurity.newRecovery.region.label"
+        aria-label="New recovery codes — save these now, they are shown only once"
+      >
+        <p class="mfa-help" i18n="Warning above the regenerated recovery codes|@@mfaSecurity.newRecovery.help">
+          Your new recovery codes — save them now. <strong>They are shown only
+          once</strong> and your old codes no longer work.
+        </p>
+        <ul class="mfa-codes" data-testid="mfa-new-recovery-codes">
+          @for (code of newRecoveryCodes(); track code) {
+            <li><code>{{ code }}</code></li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</section>

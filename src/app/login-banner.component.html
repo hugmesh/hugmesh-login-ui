@@ -1,0 +1,44 @@
+@if (hasAnnouncements()) {
+  <section
+    class="hug-login-banner"
+    data-testid="login-banner"
+    role="region"
+    i18n-aria-label="Accessible name of the announcements region on the login page|@@banner.region.label"
+    aria-label="Announcements"
+    aria-live="polite"
+  >
+    @for (a of announcements(); track trackById($index, a)) {
+      <article class="announcement" data-testid="login-announcement" aria-labelledby="hug-ann-{{ a.id }}-title">
+        <header class="announcement-head">
+          <h3 id="hug-ann-{{ a.id }}-title">{{ a.title }}</h3>
+          @if (a.dismissible) {
+            <button
+              type="button"
+              class="dismiss"
+              data-testid="login-announcement-dismiss"
+              [attr.aria-label]="dismissLabel(a)"
+              (click)="dismiss(a.id)"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          }
+        </header>
+
+        <!--
+          SANDBOXED. The frame carries NO allow-scripts and NO allow-same-origin:
+          a null-origin, script-disabled document. Only the (server-sanitised)
+          body_html is loaded via srcdoc — never raw innerHTML.
+        -->
+        <iframe
+          class="announcement-body"
+          data-testid="login-announcement-body"
+          [title]="frameTitle(a)"
+          sandbox=""
+          referrerpolicy="no-referrer"
+          loading="lazy"
+          [srcdoc]="doc(a)"
+        ></iframe>
+      </article>
+    }
+  </section>
+}

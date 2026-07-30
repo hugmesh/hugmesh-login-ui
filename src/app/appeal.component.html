@@ -1,0 +1,113 @@
+<section class="hug-appeal" data-testid="appeal-view" aria-labelledby="hug-appeal-heading">
+  <h2 id="hug-appeal-heading" i18n="Heading of the account-appeal page|@@appeal.heading">Appeal an account block</h2>
+
+  @if (reason()) {
+    <p
+      class="blocked-reason"
+      data-testid="appeal-reason"
+      role="alert"
+      aria-live="assertive"
+    >
+      {{ reason() }}
+    </p>
+  }
+
+  <p data-testid="appeal-intro" i18n="Introduction on the account-appeal page|@@appeal.intro">
+    If your account has been suspended or banned and you believe this was a
+    mistake, you can appeal by email. Include your account name and anything that
+    helps us review your case.
+  </p>
+
+  <ol class="appeal-steps" data-testid="appeal-steps">
+    <li i18n="First step of the appeal instructions|@@appeal.step.email">Email the support address below from an account you can be reached at.</li>
+    <li i18n="Second step of the appeal instructions|@@appeal.step.describe">Describe what happened and why you think the block should be lifted.</li>
+    <li i18n="Third step of the appeal instructions|@@appeal.step.reply">We will review your appeal and reply to the address you wrote from.</li>
+  </ol>
+
+  @if (hasEmail()) {
+    <p class="appeal-contact">
+      <a
+        data-testid="appeal-mailto"
+        [href]="mailtoHref()"
+        [attr.aria-label]="mailtoAccessibleName()"
+        aria-describedby="hug-appeal-mailto-help"
+        >{{ email() }}</a
+      >
+    </p>
+    <p class="field-help" id="hug-appeal-mailto-help" data-testid="appeal-mailto-help"
+       i18n="Help text under the support email link|@@appeal.mailto.help">
+      Opens your email app with the subject pre-filled. If nothing opens, copy
+      this address and email us from any account you can be reached at.
+    </p>
+  } @else if (contactUnavailable()) {
+    <p
+      class="appeal-contact-unavailable"
+      data-testid="appeal-contact-unavailable"
+      role="alert"
+      aria-live="assertive"
+      i18n="Shown when the support address could not be fetched|@@appeal.contactUnavailable"
+    >
+      The support address could not be loaded right now. Please try again shortly,
+      or reach out through any official hugmesh.systems channel.
+    </p>
+  }
+
+  @if (showAppealForm()) {
+    <section class="appeal-form-section" data-testid="appeal-form-section" aria-labelledby="hug-appeal-form-heading">
+      <h3 id="hug-appeal-form-heading" i18n="Heading of the structured-appeal form|@@appeal.form.heading">Submit a structured appeal</h3>
+
+      @if (submitted()) {
+        <p class="appeal-submitted" data-testid="appeal-submitted" role="status" aria-live="polite"
+           i18n="Confirmation shown after the server recorded a structured appeal|@@appeal.form.submitted">
+          Your appeal has been recorded. We will review it and follow up.
+        </p>
+      } @else {
+        <p data-testid="appeal-form-intro" i18n="Introduction above the structured-appeal form|@@appeal.form.intro">
+          Because you are signed in, you can also submit a structured appeal directly —
+          it will be reviewed alongside the email option above.
+        </p>
+
+        <form data-testid="appeal-form" (ngSubmit)="submit()" novalidate
+              i18n-aria-label="Accessible name of the structured-appeal form|@@appeal.form.label"
+              aria-label="Submit a structured account appeal">
+          <label for="hug-appeal-reason" i18n="Label for the appeal free-text field|@@appeal.form.reason.label">What happened, and why should this be reconsidered?</label>
+          <textarea
+            id="hug-appeal-reason"
+            data-testid="appeal-reason-input"
+            name="appealReason"
+            rows="4"
+            required
+            [ngModel]="reasonInput()"
+            (ngModelChange)="reasonInput.set($event)"
+            [disabled]="submitting()"
+          ></textarea>
+
+          <label for="hug-appeal-contact-email" i18n="Label for the optional alternate contact email field|@@appeal.form.contactEmail.label">Alternate contact email (optional)</label>
+          <input
+            id="hug-appeal-contact-email"
+            data-testid="appeal-contact-email-input"
+            name="appealContactEmail"
+            type="email"
+            [ngModel]="contactEmailInput()"
+            (ngModelChange)="contactEmailInput.set($event)"
+            [disabled]="submitting()"
+          />
+
+          @if (submitError()) {
+            <p class="appeal-submit-error" data-testid="appeal-submit-error" role="alert" aria-live="assertive">
+              {{ submitError() }}
+            </p>
+          }
+
+          <button type="submit" data-testid="appeal-submit" [disabled]="submitting() || !reasonInput().trim()">
+            {{ submitLabel() }}
+          </button>
+        </form>
+      }
+    </section>
+  }
+
+  <p class="appeal-back">
+    <a routerLink="/" data-testid="appeal-back" i18n="Link back to the sign-in page|@@appeal.back">Back to sign in</a>
+  </p>
+</section>

@@ -1,0 +1,61 @@
+@use 'tokens' as t;
+
+.hug-appeal {
+  display: block;
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+
+  h2 {
+    margin: 0 0 0.75rem;
+  }
+
+  // The blocked reason is announced (role=alert). Flag it beyond colour with a
+  // heavy left border so the cue is visible to colour-blind users too.
+  // --hug-error (#ff6b6b) reads at AA against the dark shell background.
+  .blocked-reason {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 4px solid var(--hug-error);
+    color: var(--hug-error);
+    font-weight: 700;
+  }
+
+  .appeal-steps {
+    margin: 0.75rem 0;
+    padding-left: 1.25rem;
+
+    li {
+      margin-bottom: 0.35rem;
+    }
+  }
+
+  .appeal-contact {
+    margin: 1rem 0;
+    font-size: 1.1rem;
+
+    a {
+      font-weight: 700;
+    }
+  }
+
+  // The resolver-unavailable fallback is also announced; --hug-text-muted is AAA
+  // on the dark shell so it stays legible without relying on colour alone.
+  .appeal-contact-unavailable {
+    margin: 1rem 0;
+    color: var(--hug-text-muted);
+  }
+
+  // Help text for the mailto link (aria-describedby'd to it): what clicking it
+  // does + a copy-the-address fallback. --hug-text-muted is AAA on the dark shell
+  // so it stays legible without relying on colour; em sizing scales with zoom.
+  .field-help {
+    margin: -0.5rem 0 1rem;
+    color: var(--hug-text-muted);
+    font-size: 0.875rem;
+  }
+
+  .appeal-back {
+    margin-top: 1.5rem;
+  }
+}

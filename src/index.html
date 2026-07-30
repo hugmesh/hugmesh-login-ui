@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- THIS DOCUMENT IS PRODUCTION-SERVED — not merely a dev shell.
+     Per the login-ui README and the fe-gateway route table, the fe-gateway
+     matches /login/** directly to THIS container and serves this index.html to
+     real users (StripPrefix=1). It is NOT superseded by a host-served document.
+     So the <title> and favicon here are what users actually see on the platform
+     front door and must carry NO dev/architecture suffix.
+     The app BODY is translated at runtime by the localeGuard catalog (see
+     src/app/i18n/locale.ts); this <html lang="en"> is the source-locale default.
+     Driving <html lang> from the resolved locale is a tracked a11y follow-up
+     (rendering audit) — the standalone dev shell + offline e2e are English.
+     NOTE: keep literal script/tag tokens out of the comments below — the Angular
+     index writer injects es-module-shims config after the first such token. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>HugMesh Login</title>
+  <base href="/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Sign in to hugmesh.systems — your account for Matrix, Mastodon and the platform." />
+  <!-- Mobile browser-chrome tint. This MUST be a literal colour (a meta tag
+       cannot read the --hug-bg-0 custom property), so it is the SOURCE-BRAND
+       default only: it is kept in sync with --hug-bg-0 in src/styles.scss by
+       hand, and a per-mesh runtime rebrand delivered through SNAP_THEME_CSS /
+       snap-theme.css CANNOT override it. Cosmetic-only (the page background
+       itself does follow the runtime theme); rebranding it would need the
+       entrypoint to rewrite this document. -->
+  <meta name="theme-color" content="#0a0a12" />
+  <!-- RELATIVE (no leading slash) so it resolves against the /login base href
+       when the fe-gateway serves this document under /login/** — same reason as
+       snap-config.js below. The canonical multi-resolution brand icon (the
+       fleet's shared favicon.ico, shipped here via angular.json assets). -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <!-- Runtime SPA config, written at container start by
+       docker-entrypoint.d/40-snap-config.sh from env vars and served no-store
+       (see nginx.conf). This classic script (in the document head) runs BEFORE
+       the deferred module bundles Angular injects, so the window.__HUG_*__
+       globals (the BFF URL + the session-custody flag) exist before the app
+       reads them. The nginx sub_filter tags it with the CSP nonce, and
+       same-origin 'self' in script-src covers it either way.
+       NOTE: keep literal tag tokens out of this comment — the Angular index
+       writer injects es-module-shims config after the first such token. -->
+  <!-- RELATIVE (no leading slash) so it resolves against the app base href — /login/
+       when served standalone under the /login prefix — instead of the origin root
+       (which the fe-gateway routes to the systems-web host, where it 404s). -->
+  <script src="snap-config.js"></script>
+  <!-- Runtime login THEME (colours + fonts), written at container start by
+       docker-entrypoint.d/50-snap-theme.sh from SNAP_THEME_CSS. It carries
+       ALREADY-DERIVED token text under a doubled ":root:root" selector, which
+       out-specifies the compiled :root fallbacks in the Angular-injected
+       stylesheet regardless of which sheet the browser loads last. Empty
+       (zero-byte) on unbranded deploys, so the shipped defaults render.
+       RELATIVE path for the same /login base-href reason as snap-config.js. -->
+  <link rel="stylesheet" href="snap-theme.css" />
+</head>
+<body>
+  <hug-login-root></hug-login-root>
+</body>
+</html>

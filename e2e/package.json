@@ -1,0 +1,16 @@
+{
+  "name": "hugmesh-login-ui-e2e",
+  "private": true,
+  "description": "Playwright + playwright-bdd (Gherkin) e2e harness for hugmesh-login-ui. Ships dark: cluster-dependent scenarios are @skip until a live integration-test host is wired.",
+  "scripts": {
+    "test": "playwright test",
+    "bdd:gen": "bddgen",
+    "bdd": "bddgen && playwright test",
+    "bdd:list": "bddgen && playwright test --list"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.0",
+    "@types/node": "^24",
+    "playwright-bdd": "^9.2.0"
+  }
+}

@@ -222,9 +222,16 @@ export class SessionService {
    * blank — the cookie session is identified server-side, not by these fields.
    */
   async hydrate(): Promise<SnapSession | null> {
-    // localStorage mode (legacy): no server session to hydrate from. OIDC ships
-    // the same opaque-cookie custody as cookie mode, so it hydrates here too.
-    if (!cookieModeEnabled() && !oidcEnabled()) return this.session();
+    // EVERY mode hydrates. localStorage mode used to return early here, which
+    // stranded the hardcoded `roles: ['user']` guess that login() writes before
+    // this call (bff.service.ts): the server's REAL roles never reached storage,
+    // so a mod/admin/superadmin looked like a plain user to every consumer of
+    // `hug.session`. Live consequence (operator report 2026-08-14): /mod's
+    // canActivate guard read roles:['user'], denied its own moderator, and
+    // redirected to a '/login' route that does not exist INSIDE the mounted
+    // remote — NG04002, blank screen, "no clear way to administer matrix
+    // mastodon". Auth custody is unchanged: /bff/session is cookie-authenticated
+    // and returns NO token, only non-secret role/registration metadata.
     try {
       const r = await fetch(`${CFG.bff}/bff/session`, {
         method: 'GET',
@@ -233,6 +240,7 @@ export class SessionService {
       });
       if (!r.ok) { this.clearLocal(); return null; }
       const data = await r.json();
+      const prior = this.session();
       const s: SnapSession = {
         // The cookie session is identified server-side, so there is no real
         // client-known id/label/provider to report here. Tag 'oidc' only for the
@@ -240,7 +248,14 @@ export class SessionService {
         // cookie mode, i.e. every native /bff/login today) falls back to the
         // vestigial 'google' placeholder — no UI logic reads this value (see the
         // SnapSession.provider comment), so the tag itself is not load-bearing.
-        id: '', label: '', provider: oidcEnabled() && !cookieModeEnabled() ? 'oidc' : 'google',
+        // Keep whatever identity the CALLER already established (localStorage
+        // mode's login() sets label=<username>, which the shell renders in its
+        // nav). Only the server-owned fields below are authoritative here —
+        // blanking the label would log the user out of their own name.
+        id: prior?.id ?? '',
+        label: prior?.label ?? '',
+        provider: prior?.provider
+          ?? (oidcEnabled() && !cookieModeEnabled() ? 'oidc' : 'google'),
         roles: data.roles ?? ['user'],
         registrationComplete: !!data.registrationComplete,
       };

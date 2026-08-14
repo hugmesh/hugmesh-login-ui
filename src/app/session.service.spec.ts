@@ -181,6 +181,25 @@ describe('SessionService (cookie mode)', () => {
     expect(localStorage.getItem('hug.session')).toBeNull();
   });
 
+  it('hydrate() CORRECTS the roles in localStorage mode, keeping the identity', async () => {
+    // Operator report 2026-08-14: hydrate() returned early in localStorage mode,
+    // so login()'s hardcoded roles:['user'] guess was never corrected — /mod's
+    // guard then denied its own moderator and crashed the remote's router
+    // (NG04002 '/login'), i.e. "no clear way to administer matrix/mastodon".
+    svc.set({ id: '', label: 'e2e-mod', provider: 'password', roles: ['user'],
+              registrationComplete: true } as any);
+    spyOn(globalThis as any, 'fetch').and.resolveTo(
+      new Response(JSON.stringify({ roles: ['mod'], registrationComplete: true }),
+        { status: 200 }));
+    const s = await svc.hydrate();
+    expect(s?.roles).toEqual(['mod']);
+    // the caller-established identity survives (the shell renders this label)
+    expect(s?.label).toBe('e2e-mod');
+    expect(s?.provider).toBe('password');
+    // and the correction actually REACHES storage (the host shell re-reads it)
+    expect(JSON.parse(localStorage.getItem('hug.session')!).roles).toEqual(['mod']);
+  });
+
   it('hydrate() drops to null on a non-OK /bff/session (not logged in)', async () => {
     svc.set(makeSession());
     spyOn(globalThis as any, 'fetch').and.resolveTo(new Response('', { status: 401 }));

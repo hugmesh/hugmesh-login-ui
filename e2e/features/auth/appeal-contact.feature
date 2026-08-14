@@ -2,7 +2,7 @@
 # (offline, NOT @cluster).
 #
 # Part of the cross-service "ban -> appeal -> admin approve -> access restored"
-# loop (see hugmesh.systems' status-gate.feature/appeal-redirect.feature and
+# loop (see hugmesh.net' status-gate.feature/appeal-redirect.feature and
 # hugmesh-admin-ui's access-suspension.feature). This feature is the
 # SUBMISSION leg: a banned/suspended visitor who lands on `/login/appeal`
 # (deep-linked by the host's roleHomeGuard short-circuit, or by the login
@@ -26,19 +26,19 @@
 Feature: The appeal-contact page resolves a real support address and announces the block reason
 
   Scenario: A visitor deep-linking the appeal page sees real appeal steps and a resolved mailto link
-    Given the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    Given the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     When I open the appeal page directly
     Then the appeal page is shown
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
-    And the appeal mailto link's accessible name mentions "appeals@hugmesh.systems"
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
+    And the appeal mailto link's accessible name mentions "appeals@hugmesh.net"
     And no blocked-reason is announced
 
   Scenario: A deep-link carrying a blocked reason announces it immediately
-    Given the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    Given the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     When I open the appeal page with reason "Repeated spam reports"
     Then the appeal page is shown
     And the blocked reason "Repeated spam reports" is announced in an assertive live region
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
 
   Scenario: An unreachable resolver degrades to an honest unavailable notice, never a broken mailto
     Given the appeal-contact resolver is unreachable

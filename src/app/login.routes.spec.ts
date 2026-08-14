@@ -9,7 +9,7 @@ import { MfaSecurityComponent } from './mfa-security.component';
 
 /**
  * These specs lock down the federation contract: `./routes` (exposed under the
- * remote name "login") is the single module the hugmesh.systems host mounts
+ * remote name "login") is the single module the hugmesh.net host mounts
  * at /login. The host depends on these paths and components, so a regression
  * here would silently break the host's login/registration flow.
  *

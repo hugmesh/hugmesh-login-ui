@@ -32,7 +32,7 @@ describe('AppealContactService', () => {
     const p = service.contact();
     const req = httpMock.expectOne((r) => r.url.includes(PATH));
     expect(req.request.method).toBe('GET');
-    req.flush({ email: 'appeals@hugmesh.systems' });
+    req.flush({ email: 'appeals@hugmesh.net' });
     await p;
   });
 
@@ -42,14 +42,14 @@ describe('AppealContactService', () => {
     expect(req.request.headers.has('Authorization')).toBeFalse();
     // And no cookies are attached (no credentials on the anonymous read).
     expect(req.request.withCredentials).toBeFalse();
-    req.flush({ email: 'appeals@hugmesh.systems' });
+    req.flush({ email: 'appeals@hugmesh.net' });
     await p;
   });
 
   it('returns the resolved email on success', async () => {
     const p = service.contact();
-    httpMock.expectOne((r) => r.url.includes(PATH)).flush({ email: 'appeals@hugmesh.systems' });
-    expect(await p).toEqual({ email: 'appeals@hugmesh.systems' });
+    httpMock.expectOne((r) => r.url.includes(PATH)).flush({ email: 'appeals@hugmesh.net' });
+    expect(await p).toEqual({ email: 'appeals@hugmesh.net' });
   });
 
   it('degrades to { email: null } on a non-OK response (e.g. gateway 401)', async () => {

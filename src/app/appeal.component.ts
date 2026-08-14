@@ -19,7 +19,7 @@ import { SessionService } from './session.service';
  * `$localize` ever reappears at module scope here. See src/app/i18n/locale.ts.
  */
 function appealSubject(): string {
-  return $localize`:Subject line pre-filled into the appeal email|@@appeal.mailto.subject:Account appeal — hugmesh.systems`;
+  return $localize`:Subject line pre-filled into the appeal email|@@appeal.mailto.subject:Account appeal — hugmesh.net`;
 }
 
 /**

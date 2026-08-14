@@ -1,7 +1,7 @@
 # Protected-route gate — the registeredGuard redirect this remote exports.
 #
 # `registeredGuard` (src/app/registration.guard.ts) is exported for the
-# hugmesh.systems HOST, which mounts it on the Matrix/Mastodon
+# hugmesh.net HOST, which mounts it on the Matrix/Mastodon
 # micro-frontends (`/social/matrix`, `/social/mastodon` — host app.routes.ts):
 # only a session with registrationComplete=true may activate them; everyone
 # else — including a signed-out visitor with NO session at all — is redirected

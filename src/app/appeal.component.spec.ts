@@ -67,7 +67,7 @@ describe('AppealComponent', () => {
   // =====================================================================
 
   it('renders an accessible heading that labels the appeal region', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -81,26 +81,26 @@ describe('AppealComponent', () => {
   });
 
   it('renders the resolved email as a REAL mailto link with an accessible name', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
     const link = testid('appeal-mailto') as HTMLAnchorElement;
     expect(link).toBeTruthy();
-    expect(link.getAttribute('href')).toContain('mailto:appeals@hugmesh.systems');
+    expect(link.getAttribute('href')).toContain('mailto:appeals@hugmesh.net');
     // The mailto pre-fills an appeal subject.
     expect(link.getAttribute('href')).toContain('subject=');
     // The accessible name announces the action + address, not a bare string.
     const ariaLabel = link.getAttribute('aria-label') ?? '';
-    expect(ariaLabel).toContain('appeals@hugmesh.systems');
+    expect(ariaLabel).toContain('appeals@hugmesh.net');
     expect(ariaLabel.toLowerCase()).toContain('appeal');
     // The visible text is the address itself.
-    expect(link.textContent).toContain('appeals@hugmesh.systems');
+    expect(link.textContent).toContain('appeals@hugmesh.net');
   });
 
   it('describes the mailto link with visible help that the link references (aria-describedby)', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -116,7 +116,7 @@ describe('AppealComponent', () => {
   });
 
   it('renders ordered appeal steps (real heading/list structure)', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -128,7 +128,7 @@ describe('AppealComponent', () => {
 
   it('announces a blocked reason via role=alert + aria-live=assertive when given', async () => {
     queryParams = { reason: 'Your account was suspended for spam.' };
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -141,7 +141,7 @@ describe('AppealComponent', () => {
   });
 
   it('shows NO blocked-reason alert when no reason is passed', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -182,7 +182,7 @@ describe('AppealComponent', () => {
   // =====================================================================
 
   it('renders the mailto as a native, keyboard-reachable <a href> (not a click-only element)', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -196,7 +196,7 @@ describe('AppealComponent', () => {
   });
 
   it('renders the back-to-sign-in control as a native, keyboard-reachable <a>', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -210,7 +210,7 @@ describe('AppealComponent', () => {
   });
 
   it('uses NO positive tabindex and NO custom interactive-role widget (natural focus order)', async () => {
-    await setup('appeals@hugmesh.systems');
+    await setup('appeals@hugmesh.net');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -237,7 +237,7 @@ describe('AppealComponent', () => {
   // =====================================================================
 
   it('shows NO structured-appeal form for a visitor with no session (mailto is their only path)', async () => {
-    await setup('appeals@hugmesh.systems', false);
+    await setup('appeals@hugmesh.net', false);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -248,7 +248,7 @@ describe('AppealComponent', () => {
   });
 
   it('shows the structured-appeal form for a still-authenticated (curtailed) session', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -260,7 +260,7 @@ describe('AppealComponent', () => {
   });
 
   it('a genuine server-confirmed success shows the recorded confirmation, not before', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -288,7 +288,7 @@ describe('AppealComponent', () => {
   });
 
   it('passes a trimmed optional contact email through to the submission', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -302,7 +302,7 @@ describe('AppealComponent', () => {
   });
 
   it('an unauthenticated-session failure NEVER shows the confirmation, and announces the honest reason', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -322,7 +322,7 @@ describe('AppealComponent', () => {
   });
 
   it('a network failure NEVER shows the confirmation, and announces an honest reason', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -337,7 +337,7 @@ describe('AppealComponent', () => {
   });
 
   it('does not submit an empty/whitespace-only reason', async () => {
-    await setup('appeals@hugmesh.systems', true);
+    await setup('appeals@hugmesh.net', true);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();

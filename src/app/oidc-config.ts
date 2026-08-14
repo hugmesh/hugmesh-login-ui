@@ -8,7 +8,7 @@
  * the opaque `bff_` cookie). All that remains here is the host-injected flag that
  * selects the opaque-cookie SESSION-CUSTODY model.
  *
- * Read off `globalThis` at RUNTIME (the hugmesh.systems host injects
+ * Read off `globalThis` at RUNTIME (the hugmesh.net host injects
  * `globalThis.__HUG_*__` before federating this remote — this remote only READS
  * them). With the global absent, {@link oidcEnabled} is false and the session is
  * held in the legacy localStorage mode.

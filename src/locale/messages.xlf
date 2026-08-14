@@ -70,7 +70,7 @@
         <note category="meaning">Shown when the support address could not be fetched</note>
       </notes>
       <segment>
-        <source> The support address could not be loaded right now. Please try again shortly, or reach out through any official hugmesh.systems channel. </source>
+        <source> The support address could not be loaded right now. Please try again shortly, or reach out through any official hugmesh.net channel. </source>
       </segment>
     </unit>
     <unit id="appeal.form.heading">
@@ -142,7 +142,7 @@
         <note category="meaning">Subject line pre-filled into the appeal email</note>
       </notes>
       <segment>
-        <source>Account appeal — hugmesh.systems</source>
+        <source>Account appeal — hugmesh.net</source>
       </segment>
     </unit>
     <unit id="appeal.mailto.label">
@@ -241,7 +241,7 @@
         <note category="meaning">Heading of the sign-in page</note>
       </notes>
       <segment>
-        <source>Sign in to hugmesh.systems</source>
+        <source>Sign in to hugmesh.net</source>
       </segment>
     </unit>
     <unit id="login.intro">
@@ -250,7 +250,7 @@
         <note category="meaning">Instruction under the sign-in heading</note>
       </notes>
       <segment>
-        <source> Sign in with your hugmesh.systems username and password. </source>
+        <source> Sign in with your hugmesh.net username and password. </source>
       </segment>
     </unit>
     <unit id="login.username.label">

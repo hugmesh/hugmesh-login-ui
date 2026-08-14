@@ -29,17 +29,17 @@ Feature: Blocked sign-in routes to the appeal page (banned / suspended)
   Scenario: a banned sign-in is auto-routed to the appeal page with the reason announced
     Given a fresh browser context
     And the BFF refuses sign-in as "account_banned" with reason "Repeated spam reports"
-    And the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     When "bob_banned" signs in with their username and password
     Then the appeal page is shown
     And the blocked reason "Repeated spam reports" is announced in an assertive live region
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
     And no session is stored
 
   Scenario: a suspended sign-in is likewise routed to the appeal page
     Given a fresh browser context
     And the BFF refuses sign-in as "account_suspended" with reason "Under review by moderators"
-    And the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     When "bob_banned" signs in with their username and password
     Then the appeal page is shown
     And the blocked reason "Under review by moderators" is announced in an assertive live region

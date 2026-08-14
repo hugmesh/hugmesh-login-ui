@@ -1,7 +1,7 @@
 <hug-login-banner />
 
 <section class="hug-login" data-testid="login-view" aria-labelledby="hug-login-heading">
-  <h2 id="hug-login-heading" i18n="Heading of the sign-in page|@@login.heading">Sign in to hugmesh.systems</h2>
+  <h2 id="hug-login-heading" i18n="Heading of the sign-in page|@@login.heading">Sign in to hugmesh.net</h2>
 
   @if (!pending()) {
     @if (!mfaRequired()) {
@@ -25,7 +25,7 @@
            redirected to Casdoor and never receives a token. -->
       <p class="form-help" id="hug-login-intro" data-testid="login-intro"
          i18n="Instruction under the sign-in heading|@@login.intro">
-        Sign in with your hugmesh.systems username and password.
+        Sign in with your hugmesh.net username and password.
       </p>
 
       <form (ngSubmit)="submit()">

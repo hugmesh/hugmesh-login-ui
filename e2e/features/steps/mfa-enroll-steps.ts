@@ -39,7 +39,7 @@ Given('MFA TOTP enrollment start returns the setup key {string}', async ({ page 
       body: JSON.stringify({
         factorId: 'factor-totp-e2e',
         secret,
-        otpauthUri: `otpauth://totp/hugmesh.systems:e2e?secret=${secret}&issuer=hugmesh.systems&algorithm=SHA1&digits=6&period=30`,
+        otpauthUri: `otpauth://totp/hugmesh.net:e2e?secret=${secret}&issuer=hugmesh.net&algorithm=SHA1&digits=6&period=30`,
       }),
     });
   });

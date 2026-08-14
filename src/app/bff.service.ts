@@ -70,7 +70,7 @@ export interface RegistrationIdentity {
 
 const CFG = {
   bff: (globalThis as any).__HUG_BFF_URL__ ?? '',
-  uptrace: (globalThis as any).__HUG_UPTRACE_URL__ ?? 'https://uptrace.hugmesh.systems',
+  uptrace: (globalThis as any).__HUG_UPTRACE_URL__ ?? 'https://uptrace.hugmesh.net',
 };
 
 /**

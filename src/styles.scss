@@ -2,13 +2,13 @@
 
 /* hugmesh-login-ui global styles.
  *
- * This is a native-federation REMOTE: the host (hugmesh.systems) federates
+ * This is a native-federation REMOTE: the host (hugmesh.net) federates
  * `./routes` in and provides its own global styles. These rules exist so the
  * remote is ALSO accessible when served standalone (`ng serve login`) AND so
  * the a11y baseline (focus ring, links, touch targets, reduced-motion, etc.) is
  * identical to the host's — the host's styles.scss a11y block, minus its
  * Bootstrap dependency which this remote does not carry. Mirrors
- * hugmesh.systems/src/styles.scss.
+ * hugmesh.net/src/styles.scss.
  */
 
 /* HugMesh WCAG-AA/AAA palette — centralised as runtime :root custom

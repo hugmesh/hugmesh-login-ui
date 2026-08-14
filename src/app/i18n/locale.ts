@@ -4,7 +4,7 @@
  * WHY RUNTIME AND NOT ANGULAR'S DEFAULT BUILD-TIME i18n
  * ----------------------------------------------------
  * Build-time i18n emits ONE BUNDLE PER LOCALE. This repo is a native-federation
- * REMOTE: the hugmesh.systems host resolves remotes through a flat
+ * REMOTE: the hugmesh.net host resolves remotes through a flat
  * `remoteName -> URL` map (its `resolveFederationSource()` + `initFederation()`,
  * with `{ path: 'login', remoteName: 'login', exposed: './routes' }`). That map
  * has NO locale axis, and the fe-gateway routes `/login/**` (StripPrefix=1) to a
@@ -55,7 +55,7 @@ const LANG_STORAGE_KEY = 'snap.login.lang';
  *
  * This is load-bearing and easy to get wrong. Remote code executes inside the
  * HOST'S page, so a document-relative `fetch('i18n/de.json')` would resolve
- * against the host origin (hugmesh.systems) — where it 404s, or worse, hits
+ * against the host origin (hugmesh.net) — where it 404s, or worse, hits
  * the systems-web host and returns an HTML 200. `import.meta.url` is the URL of
  * this module's own chunk, so the catalog is always fetched from the container
  * that shipped it — correct whether the remote is loaded cross-origin directly

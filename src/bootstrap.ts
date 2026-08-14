@@ -3,7 +3,7 @@
  * with the {@link routes} (LOGIN_ROUTES mounted at '') so the remote is
  * browsable standalone via `ng serve login`.
  *
- * In production this file is NOT loaded — the hugmesh.systems host
+ * In production this file is NOT loaded — the hugmesh.net host
  * federates `./routes` (LOGIN_ROUTES) directly at the /login mount.
  */
 import { bootstrapApplication } from '@angular/platform-browser';

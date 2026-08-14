@@ -20,21 +20,21 @@ Feature: Runtime locale preference (?lang= + snap.login.lang persistence)
   So that localization works and never locks me out of signing in
 
   Scenario: ?lang=en-XA renders the translated heading and persists the choice
-    Given the "en-XA" catalog translates the sign-in heading to "⟦Sign in to hugmesh.systems⟧"
+    Given the "en-XA" catalog translates the sign-in heading to "⟦Sign in to hugmesh.net⟧"
     When I open the login view in locale "en-XA"
-    Then the sign-in heading reads "⟦Sign in to hugmesh.systems⟧"
+    Then the sign-in heading reads "⟦Sign in to hugmesh.net⟧"
     And the stored login locale is "en-XA"
 
   Scenario: the persisted locale survives the next visit (no ?lang= needed)
-    Given the "en-XA" catalog translates the sign-in heading to "⟦Sign in to hugmesh.systems⟧"
+    Given the "en-XA" catalog translates the sign-in heading to "⟦Sign in to hugmesh.net⟧"
     When I open the login view in locale "en-XA"
-    Then the sign-in heading reads "⟦Sign in to hugmesh.systems⟧"
+    Then the sign-in heading reads "⟦Sign in to hugmesh.net⟧"
     When I reopen the login view without a lang override
-    Then the sign-in heading reads "⟦Sign in to hugmesh.systems⟧"
+    Then the sign-in heading reads "⟦Sign in to hugmesh.net⟧"
     And the stored login locale is "en-XA"
 
   Scenario: a missing catalog falls back to English and the login form stays usable
     Given the "en-XA" catalog is unavailable
     When I open the login view in locale "en-XA"
-    Then the sign-in heading reads "Sign in to hugmesh.systems"
+    Then the sign-in heading reads "Sign in to hugmesh.net"
     And the native username and password fields are shown

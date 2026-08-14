@@ -33,27 +33,27 @@ Feature: Structured appeal submit — a curtailed signed-in session can submit a
 
   Scenario: A signed-in, curtailed visitor sees the structured appeal form and gets a real confirmation on success
     Given a signed-in session is seeded for the "suspended@gmail.com" persona
-    And the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     And submitting a structured appeal succeeds with status "PENDING" and id "appeal-123"
     When I open the appeal page directly
     Then the structured appeal form is shown
     When I submit the structured appeal with reason "I was banned by mistake, please review my case."
     Then the appeal is shown as recorded
     And the structured appeal form is no longer shown
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
 
   Scenario: A signed-out visitor sees only the mailto fallback, never the structured submit form
-    Given the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    Given the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     When I open the appeal page directly
     Then the structured appeal form is not shown
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
 
   Scenario: A submit that the server rejects as unauthenticated shows an honest error, never a false confirmation
     Given a signed-in session is seeded for the "suspended@gmail.com" persona
-    And the appeal-contact resolver answers with the email "appeals@hugmesh.systems"
+    And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     And submitting a structured appeal is rejected as unauthenticated
     When I open the appeal page directly
     And I submit the structured appeal with reason "I was banned by mistake, please review my case."
     Then the appeal submit error says "We could not verify a signed-in session from this browser, so the structured appeal was not recorded. Please use the email address below instead."
     And the appeal is not shown as recorded
-    And the appeal mailto link points to "appeals@hugmesh.systems" with the appeal subject
+    And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject

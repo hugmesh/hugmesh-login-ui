@@ -12,7 +12,7 @@ import { Given, When, Then } from '../support/fixtures';
 /** The exact mailto subject the component pre-fills (appeal.component.ts
  *  APPEAL_SUBJECT) — kept in lockstep here so a src rename fails this test
  *  loudly rather than the assertion silently drifting. */
-const APPEAL_SUBJECT = 'Account appeal — hugmesh.systems';
+const APPEAL_SUBJECT = 'Account appeal — hugmesh.net';
 
 Given('the appeal-contact resolver answers with the email {string}', async ({ page }, email: string) => {
   await page.route('**/bff/public/appeal-contact', async (route) => {

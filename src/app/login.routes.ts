@@ -29,7 +29,7 @@ import { MfaSecurityComponent } from './mfa-security.component';
 
 /**
  * Routes exposed by this native-federation remote (`./routes`). The
- * hugmesh.systems host federates these in and mounts them at /login.
+ * hugmesh.net host federates these in and mounts them at /login.
  *
  * The `appeal` route is the client-side appeal/contact page for a BANNED or
  * SUSPENDED user. Per the canonical pattern (hugmesh.games), it is NOT a POST

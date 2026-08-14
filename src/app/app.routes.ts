@@ -5,7 +5,7 @@ import { LOGIN_ROUTES } from './login.routes';
  *  is browsable standalone. The host ignores this and loads `./routes`.
  *
  *  The routes are ALSO mounted under `login` so the standalone shell resolves
- *  the exact same `/login/*` URLs the hugmesh.systems host serves (the host
+ *  the exact same `/login/*` URLs the hugmesh.net host serves (the host
  *  federates `./routes` in at /login). This keeps deep links — e.g.
  *  `/login/appeal` and `/login/mfa/challenge` — path-compatible between the
  *  federated host and the standalone shell, which is what the offline Playwright

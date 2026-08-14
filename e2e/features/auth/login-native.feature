@@ -17,7 +17,7 @@
 # bound.
 @auth @cluster
 Feature: Native login — username/password sign-in (ALLOW)
-  As an admin-invited member of hugmesh.systems
+  As an admin-invited member of hugmesh.net
   I want to sign in with my own username and password on login-ui's own form
   So that my session is the opaque bff_ cookie and the browser never sees Casdoor
 

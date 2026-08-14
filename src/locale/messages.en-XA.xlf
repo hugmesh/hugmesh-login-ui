@@ -84,8 +84,8 @@
         <note category="meaning">Shown when the support address could not be fetched</note>
       </notes>
       <segment>
-        <source> The support address could not be loaded right now. Please try again shortly, or reach out through any official hugmesh.systems channel. </source>
-        <target>⟦ Ţĥé šüþþöŕţ åððŕéšš çöüļð ñöţ ƀé ļöåðéð ŕîğĥţ ñöŵ. Þļéåšé ţŕý åğåîñ šĥöŕţļý, öŕ ŕéåçĥ öüţ ţĥŕöüğĥ åñý öƒƒîçîåļ šñåþðŕåğöñ.šýšţéɱš çĥåññéļ. ·································⟧</target>
+        <source> The support address could not be loaded right now. Please try again shortly, or reach out through any official hugmesh.net channel. </source>
+        <target>⟦ Ţĥé šüþþöŕţ åððŕéšš çöüļð ñöţ ƀé ļöåðéð ŕîğĥţ ñöŵ. Þļéåšé ţŕý åğåîñ šĥöŕţļý, öŕ ŕéåçĥ öüţ ţĥŕöüğĥ åñý öƒƒîçîåļ ĥüğɱéšĥ.ñéţ çĥåññéļ. ·······························⟧</target>
       </segment>
     </unit>
     <unit id="appeal.form.heading">
@@ -164,8 +164,8 @@
         <note category="meaning">Subject line pre-filled into the appeal email</note>
       </notes>
       <segment>
-        <source>Account appeal — hugmesh.systems</source>
-        <target>⟦Åççöüñţ åþþéåļ — šñåþðŕåğöñ.šýšţéɱš·········⟧</target>
+        <source>Account appeal — hugmesh.net</source>
+        <target>⟦Åççöüñţ åþþéåļ — ĥüğɱéšĥ.ñéţ·······⟧</target>
       </segment>
     </unit>
     <unit id="appeal.mailto.label">
@@ -274,8 +274,8 @@
         <note category="meaning">Heading of the sign-in page</note>
       </notes>
       <segment>
-        <source>Sign in to hugmesh.systems</source>
-        <target>⟦Šîğñ îñ ţö šñåþðŕåğöñ.šýšţéɱš·······⟧</target>
+        <source>Sign in to hugmesh.net</source>
+        <target>⟦Šîğñ îñ ţö ĥüğɱéšĥ.ñéţ·····⟧</target>
       </segment>
     </unit>
     <unit id="login.intro">
@@ -284,8 +284,8 @@
         <note category="meaning">Instruction under the sign-in heading</note>
       </notes>
       <segment>
-        <source> Sign in with your hugmesh.systems username and password. </source>
-        <target>⟦ Šîğñ îñ ŵîţĥ ýöüŕ šñåþðŕåğöñ.šýšţéɱš üšéŕñåɱé åñð þåššŵöŕð. ··············⟧</target>
+        <source> Sign in with your hugmesh.net username and password. </source>
+        <target>⟦ Šîğñ îñ ŵîţĥ ýöüŕ ĥüğɱéšĥ.ñéţ üšéŕñåɱé åñð þåššŵöŕð. ············⟧</target>
       </segment>
     </unit>
     <unit id="login.username.label">

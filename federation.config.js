@@ -1,5 +1,5 @@
 // REMOTE config for the hugmesh-login-ui native-federation bundle. This repo
-// is a remote (the host hugmesh.systems consumes it via loadRemoteModule),
+// is a remote (the host hugmesh.net consumes it via loadRemoteModule),
 // exposing the login/registration routes under the remote name "login".
 //
 // The shared-deps surface (singletons, strictVersion, requiredVersion: 'auto')

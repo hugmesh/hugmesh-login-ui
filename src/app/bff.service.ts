@@ -310,7 +310,7 @@ export class BffService {
       body: JSON.stringify(this.identityBody(identity)),
     });
     // Provision the brokered Matrix/Mastodon tokens server-side FIRST (the
-    // broker can be slow against the real Synapse), THEN flip
+    // broker can be slow against the real tuwunel), THEN flip
     // registrationComplete — so the Matrix/Mastodon modules only unlock once the
     // server-held tokens actually exist (avoids a race where the UI navigates
     // before the hsproxy can inject a token).
@@ -319,7 +319,7 @@ export class BffService {
   }
 
   /** Trigger server-side provisioning of the Matrix + Mastodon access tokens —
-   *  the BFF mints them against the real Synapse/Mastodon and HOLDS them
+   *  the BFF mints them against the real tuwunel/Mastodon and HOLDS them
    *  server-side (owner = the bff_ session subject). The browser NEVER reads or
    *  stores the returned token: every Matrix/Mastodon call goes through the
    *  user-bff hsproxy (/bff/user/matrix|mastodon/**), which injects the

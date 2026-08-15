@@ -34,7 +34,9 @@
     "@softarc/native-federation-node": "^3.5.5",
     "es-module-shims": "^2.8.1",
     "rxjs": "^7.8.2",
+    "three": "^0.185.1",
     "tslib": "^2.6.0",
+    "vanta": "^0.5.24",
     "zone.js": "^0.16.1"
   },
   "devDependencies": {

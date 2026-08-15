@@ -1,0 +1,50 @@
+<!-- The visual layers carry no information, so they are hidden from the
+     accessibility tree outright: a screen-reader user gains nothing from a
+     decorative backdrop and loses time walking past it. -->
+<div
+  class="hug-bg"
+  aria-hidden="true"
+  data-testid="login-background"
+  [attr.data-preset]="activePreset()"
+  [attr.data-motion]="reducedMotion() ? 'reduced' : 'full'"
+>
+  <!-- The themed CSS gradient AND the mount point for whatever else renders: an
+       effect's canvas is appended here, an operator image becomes its
+       background-image. Whatever happens to those, this element is already
+       painted. -->
+  <div class="hug-bg__stage" #stage data-testid="login-background-stage"></div>
+  <!-- The pride-flag stripes, when the active theme preset carries them. -->
+  <div class="hug-bg__flag" data-testid="login-background-flag"></div>
+  <!-- Legibility, structurally: a wash of --hug-bg-0 over everything above, so the
+       colour the text tokens were derived against is the colour they land on. -->
+  <div class="hug-bg__scrim" data-testid="login-background-scrim"></div>
+</div>
+
+@if (pickerEnabled()) {
+  <!-- Off by default. Switched on with SNAP_BG_PICKER=1 so an operator can try the
+       presets on a real deployment without rebuilding or restarting between each
+       one; the front door stays free of decoration controls otherwise.
+       Placed after the background block (and, in the shell, after <main>) so the
+       skip link remains the first thing a keyboard user reaches. -->
+  <div class="hug-bg-picker" data-testid="login-background-picker">
+    <label
+      class="sr"
+      for="hug-bg-preset"
+      i18n="Accessible label of the login-background style picker|@@background.picker.label"
+      >Background style</label
+    >
+    <select
+      id="hug-bg-preset"
+      name="background"
+      data-testid="login-background-select"
+      [value]="activePreset()"
+      (change)="choosePreset($any($event.target).value)"
+    >
+      @for (preset of offeredPresets(); track preset) {
+        <option [value]="preset" [selected]="preset === activePreset()">
+          {{ presetLabel(preset) }}
+        </option>
+      }
+    </select>
+  </div>
+}

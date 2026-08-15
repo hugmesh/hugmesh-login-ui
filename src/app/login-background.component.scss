@@ -1,0 +1,124 @@
+@use 'tokens' as t;
+
+// display:contents deliberately: the host element itself paints nothing, and
+// collapsing it keeps BOTH children in the shell's own stacking context. Give the
+// host a z-index instead and it becomes a stacking context of its own — the picker
+// could then never rise above <main>, no matter what z-index it asked for.
+:host {
+  display: contents;
+}
+
+// The backdrop. z-index 0 (not -1): a negative index paints BELOW in-flow block
+// backgrounds, i.e. behind the shell's own opaque --hug-bg-0, which would hide it
+// completely. Layer 1 above <main>'s z-index of 0-by-default is avoided the other
+// way round — the shell gives <main> z-index 1.
+// pointer-events:none so a full-viewport decoration can never swallow a click meant
+// for the sign-in form.
+.hug-bg {
+  position: fixed;
+  inset: 0;
+  z-index: t.$z-background;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// The always-painted themed gradient, and the mount point for everything else.
+//
+// This is the fallback the whole component degrades to, so it is CSS and nothing
+// else: it is on screen before any script runs, survives a failed chunk fetch, a
+// missing WebGL context and a reduced-motion preference, and it is built from the
+// same --hug-* tokens the animation reads, so it re-themes with the rest of the page
+// without a single line of JavaScript.
+.hug-bg__stage {
+  position: absolute;
+  inset: 0;
+  background-color: var(--hug-bg-0);
+  background-image:
+    radial-gradient(75% 60% at 12% 6%, var(--hug-primary) 0%, transparent 62%),
+    radial-gradient(70% 55% at 88% 20%, var(--hug-accent) 0%, transparent 58%),
+    radial-gradient(120% 110% at 50% 118%, var(--hug-bg-1) 0%, transparent 72%);
+  // Sizing for the operator-image case (the component sets background-image inline
+  // after validating it); harmless for the gradient layers above.
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+// Pride-preset stripes, when the theme carries them.
+//
+// theme_presets.py preserves each flag's stripes verbatim in --hug-flag-stripes (a
+// hard-stop linear-gradient) precisely so a consumer can show the flag rather than
+// re-derive an approximation of it. Low opacity and under the scrim: the point is
+// that the chosen flag is present in the page, not that it competes with the form.
+// Absent from every non-flag theme, where the layer resolves to `none` and costs
+// nothing.
+.hug-bg__flag {
+  position: absolute;
+  inset: 0;
+  background-image: var(--hug-flag-stripes, none);
+  opacity: 0.16;
+}
+
+// THE LEGIBILITY LAYER. Painted in --hug-bg-0 — the exact colour every --hug-text*
+// token was derived to be readable against — so whatever the animation renders is
+// composited back toward the themed background before any text sits on it. The
+// opacity here is the single source of truth for that floor and is pinned to
+// BACKGROUND_SCRIM_ALPHA by a spec that reads this computed value.
+.hug-bg__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--hug-bg-0);
+  opacity: 0.72;
+}
+
+// The optional preset picker (SNAP_BG_PICKER=1). Above <main> so it stays clickable
+// when the login card is short, and pointer-events restored because the wrapper
+// above turns them off for the decoration.
+.hug-bg-picker {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: t.$z-nav;
+  pointer-events: auto;
+
+  select {
+    padding: 0.4rem 0.5rem;
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
+    border: 1px solid var(--hug-border);
+    border-radius: t.$radius-sm;
+    font-family: inherit;
+    font-size: 0.875rem;
+  }
+}
+
+// prefers-reduced-motion is enforced in TypeScript — the effect is never STARTED,
+// so there is no animation to slow down and the animation chunks (154 KB gzipped
+// of three.js, plus the effect) are not even fetched. This block is the belt to that braces: it pins the decorative layers
+// to a still image should a future preset ever grow a CSS animation of its own.
+@media (prefers-reduced-motion: reduce) {
+  .hug-bg__stage,
+  .hug-bg__flag,
+  .hug-bg__scrim {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+// High-contrast users get the flag wash and the gradient dropped entirely: the mode
+// exists to remove exactly this kind of variegated backdrop from behind text.
+// Matches the styles.scss prefers-contrast block, which re-anchors the same surfaces
+// to flat --hug-* colours rather than to literals.
+@media (prefers-contrast: more) {
+  .hug-bg__stage {
+    background-image: none;
+  }
+
+  .hug-bg__flag {
+    display: none;
+  }
+
+  .hug-bg__scrim {
+    opacity: 1;
+  }
+}

@@ -1,13 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AppComponent } from './app.component';
+import { VANTA_WEBGL_PROBE } from './login-background.component';
 
 /**
- * The AppComponent is the standalone dev shell (`ng serve login`). In
- * production the host federates `./routes` directly and never renders this
- * shell — but served standalone it must still meet the a11y baseline: a
- * skip-to-content link and a focusable <main> landmark wrapping the router
- * outlet, so a keyboard user can jump straight to the login view.
+ * The AppComponent is the shell this remote serves on the front door (and the
+ * standalone `ng serve login` shell). Whichever it is, it must meet the a11y
+ * baseline: a skip-to-content link and a focusable <main> landmark wrapping the
+ * router outlet, so a keyboard user can jump straight to the login view.
  */
 describe('AppComponent (standalone dev shell)', () => {
   let fixture: ComponentFixture<AppComponent>;
@@ -15,11 +15,24 @@ describe('AppComponent (standalone dev shell)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        // The shell mounts <hug-login-background>, and this spec is about the skip
+        // link, not the backdrop. Headless Chrome DOES hand out a (SwiftShader) GL
+        // context, so left alone each of the five fixtures below would fetch three.js
+        // and start a real full-viewport fragment shader to prove nothing this file
+        // asserts. Reporting "no WebGL" takes the component's own degradation path
+        // and is the single line needed to keep the animation out of here;
+        // login-background.component.spec.ts drives the effect lifecycle properly,
+        // against a fake loader.
+        { provide: VANTA_WEBGL_PROBE, useValue: () => false },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
   });
+
+  afterEach(() => fixture.destroy());
 
   it('creates the dev-shell root', () => {
     expect(fixture.componentInstance).toBeTruthy();

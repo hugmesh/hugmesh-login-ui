@@ -2,3 +2,8 @@
 <main id="hug-login-main" tabindex="-1">
   <router-outlet />
 </main>
+<!-- The themed, animated backdrop. LAST in the document on purpose: it is fixed, so
+     DOM order costs it nothing visually, and keeping it after <main> leaves the skip
+     link as the first thing a keyboard user reaches (asserted in app.component.spec)
+     and puts the optional preset picker after the page content in tab order. -->
+<hug-login-background />

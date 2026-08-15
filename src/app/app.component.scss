@@ -21,6 +21,13 @@
   border: 0;
 }
 
+// Positioned with an explicit z-index so the page content sits ABOVE the fixed
+// backdrop (hug-login-background paints at $z-background). Without this, <main> is
+// an unpositioned block: its background layer paints below every positioned
+// element, and the backdrop would cover the sign-in form instead of sitting behind
+// it. The :host --hug-bg-0 above stays as the opaque floor beneath both.
 main {
   display: block;
+  position: relative;
+  z-index: t.$z-content;
 }

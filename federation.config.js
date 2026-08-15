@@ -14,4 +14,17 @@ module.exports = hugmeshRemote({
   exposes: {
     './routes': './src/app/login.routes.ts',
   },
+  // three.js + Vanta are SKIPPED from the shared surface on purpose.
+  //
+  // hugmeshRemote() calls shareAll(), which turns every package.json dependency into
+  // a shared singleton pre-bundled into its own importmap entry. That is right for
+  // the framework and wrong for these two: they exist only behind the login
+  // background's dynamic import()s, and sharing them would hoist 154 KB (gzipped)
+  // out of a lazily-fetched chunk and into a bundle listed in remoteEntry.json — paid for on
+  // a page whose whole job is to show a sign-in form quickly. Skipping keeps esbuild's
+  // code splitting in charge, so the animation code is fetched only when an effect is
+  // actually about to run. `vanta` additionally cannot be shared as authored: its
+  // package main is unbuilt ESM with glslify shader imports, which is why the effects
+  // are imported from its prebuilt dist/ bundles.
+  extraSkip: ['three', 'vanta'],
 });

@@ -53,6 +53,12 @@
 						],
 						"tsConfig": "tsconfig.app.json",
 						"assets": ["src/favicon.ico"],
+						"allowedCommonJsDependencies": [
+							"vanta/dist/vanta.fog.min",
+							"vanta/dist/vanta.waves.min",
+							"vanta/dist/vanta.net.min",
+							"vanta/dist/vanta.globe.min"
+						],
 						"styles": [
 							"src/styles.scss"
 						],

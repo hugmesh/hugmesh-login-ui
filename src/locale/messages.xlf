@@ -3,7 +3,7 @@
   <file id="ngi18n" original="ng.template">
     <unit id="app.skipToContent">
       <notes>
-        <note category="location">src/app/app.component.html:1,5</note>
+        <note category="location">src/app/app.component.html:1,6</note>
         <note category="meaning">Skip link for keyboard/screen-reader users, first focusable element</note>
       </notes>
       <segment>
@@ -120,7 +120,7 @@
     </unit>
     <unit id="appeal.form.contactEmail.label">
       <notes>
-        <note category="location">src/app/appeal.component.html:85,89</note>
+        <note category="location">src/app/appeal.component.html:85,90</note>
         <note category="meaning">Label for the optional alternate contact email field</note>
       </notes>
       <segment>
@@ -206,6 +206,69 @@
       </notes>
       <segment>
         <source>Your appeal could not be recorded right now. Please try again, or use the email address below.</source>
+      </segment>
+    </unit>
+    <unit id="background.picker.label">
+      <notes>
+        <note category="location">src/app/login-background.component.html:34,41</note>
+        <note category="meaning">Accessible label of the login-background style picker</note>
+      </notes>
+      <segment>
+        <source>Background style</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.fog">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:211</note>
+        <note category="meaning">Name of the drifting-gradient login background</note>
+      </notes>
+      <segment>
+        <source>Gradient</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.waves">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:213</note>
+        <note category="meaning">Name of the rolling-waves login background</note>
+      </notes>
+      <segment>
+        <source>Waves</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.net">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:215</note>
+        <note category="meaning">Name of the connected-points login background</note>
+      </notes>
+      <segment>
+        <source>Mesh</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.globe">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:217</note>
+        <note category="meaning">Name of the rotating-globe login background</note>
+      </notes>
+      <segment>
+        <source>Globe</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.static">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:219</note>
+        <note category="meaning">Name of the still, non-animated login background</note>
+      </notes>
+      <segment>
+        <source>Still</source>
+      </segment>
+    </unit>
+    <unit id="background.preset.image">
+      <notes>
+        <note category="location">src/app/login-background.component.ts:221</note>
+        <note category="meaning">Name of the operator-supplied image login background</note>
+      </notes>
+      <segment>
+        <source>Image</source>
       </segment>
     </unit>
     <unit id="banner.region.label">
@@ -309,7 +372,7 @@
     </unit>
     <unit id="login.mfa.code.label">
       <notes>
-        <note category="location">src/app/login.component.html:85,90</note>
+        <note category="location">src/app/login.component.html:85,91</note>
         <note category="meaning">Label for the two-factor passcode field</note>
       </notes>
       <segment>
@@ -439,7 +502,7 @@
     </unit>
     <unit id="login.complete.screenReaderName.prompt">
       <notes>
-        <note category="location">src/app/login.component.ts:24</note>
+        <note category="location">src/app/login.component.ts:25</note>
         <note category="meaning">Prompt shown when a display name contains characters a screen reader cannot announce</note>
       </notes>
       <segment>
@@ -448,7 +511,7 @@
     </unit>
     <unit id="login.error.mfaCodeRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:184</note>
+        <note category="location">src/app/login.component.ts:228</note>
         <note category="meaning">Validation error when the two-factor passcode field is empty</note>
       </notes>
       <segment>
@@ -457,7 +520,7 @@
     </unit>
     <unit id="login.error.credentialsRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:188</note>
+        <note category="location">src/app/login.component.ts:232</note>
         <note category="meaning">Validation error when username or password is missing</note>
       </notes>
       <segment>
@@ -466,7 +529,7 @@
     </unit>
     <unit id="login.error.localRoleNeedsMfa">
       <notes>
-        <note category="location">src/app/login.component.ts:249</note>
+        <note category="location">src/app/login.component.ts:299</note>
         <note category="meaning">Shown when a passwordless local role needs a two-factor code the handoff cannot carry</note>
       </notes>
       <segment>
@@ -475,7 +538,7 @@
     </unit>
     <unit id="login.error.signInFailed">
       <notes>
-        <note category="location">src/app/login.component.ts:266</note>
+        <note category="location">src/app/login.component.ts:322</note>
         <note category="description">Sign-in failure. {{PLACEHOLDER}} is the server&apos;s error token, not translated</note>
       </notes>
       <segment>
@@ -484,7 +547,7 @@
     </unit>
     <unit id="login.error.unavailable">
       <notes>
-        <note category="location">src/app/login.component.ts:271</note>
+        <note category="location">src/app/login.component.ts:327</note>
         <note category="meaning">Shown when the sign-in backend is switched off or unreachable</note>
       </notes>
       <segment>
@@ -493,7 +556,7 @@
     </unit>
     <unit id="login.error.displayNameRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:291</note>
+        <note category="location">src/app/login.component.ts:347</note>
         <note category="meaning">Validation error when the display name is blank</note>
       </notes>
       <segment>

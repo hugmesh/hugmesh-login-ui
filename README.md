@@ -21,8 +21,94 @@ that owns sign-in, two-stage registration, MFA, and the ban/suspension appeal fl
   to the normal form.
 - **Runtime theming and i18n.** Brand colors/fonts and translation catalogs are injected at
   container start, not baked into the build — one image serves every deployment.
+- **Theme-reactive animated background.** A WebGL backdrop whose colors are read from the same
+  runtime theme tokens as the rest of the page, so a rebrand restyles it live. See below.
 - **Accessibility-first.** WCAG-audited color tokens, a two-layer high-contrast focus ring,
   live-region announcements, and ≥44px touch targets are part of the base styling, not an add-on.
+
+## Login background
+
+The sign-in page paints a themed backdrop in three layers: a CSS gradient built from the
+`--hug-*` tokens, optionally a [Vanta](https://www.vantajs.com/) effect or an operator-supplied
+image drawn over it, and a scrim of `--hug-bg-0` over both. The scrim is what keeps the form
+legible: text is composited back toward the very color the `--hug-text*` tokens were derived
+against, so no effect can quietly break contrast (`worstCaseTextContrast()` asserts the bound).
+
+**It is decoration, and it never gets a vote on whether someone can sign in.** Layer 1 is CSS and
+is on screen before any script runs. No WebGL, a chunk that will not load, a Vanta init that
+throws, a lost GL context, an image that will not decode, a typo'd preset id — every one of them
+lands back on that gradient. There is no state in which the page is blank.
+
+`prefers-reduced-motion: reduce` means the effect is **never started** — not started and paused —
+and the animation chunks are not even fetched. The preference is watched, not read once, so
+flipping it mid-session stops the animation.
+
+### Presets
+
+| id       | what it is                                                    |
+| -------- | ------------------------------------------------------------- |
+| `fog`    | slow gradient wash — the default; one full-screen shader, no geometry |
+| `waves`  | a lit, rolling surface                                        |
+| `net`    | connected points — the platform's own metaphor                |
+| `globe`  | a rotating point-globe                                        |
+| `static` | the themed CSS gradient alone: no WebGL, no chunk, no motion   |
+| `image`  | an operator-supplied background file                          |
+
+Vanta's `birds`, `dots` and friends are deliberately absent: they call three.js APIs removed years
+ago, and Vanta catches that internally and renders a flat color — a shipped option that looks like
+it works and doesn't.
+
+### Configuration
+
+Env vars, read at container start by `docker-entrypoint.d/40-snap-config.sh` — same contract as the
+theme, so a change is an env edit plus a restart, never an image rebuild:
+
+| variable            | meaning                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `SNAP_BG_EFFECT`    | one of the preset ids above. Unset ⇒ `image` if an image is configured, else `fog` |
+| `SNAP_BG_IMAGE_URL` | the operator's own background file (see below)                            |
+| `SNAP_BG_PICKER`    | `1`/`true` shows a visitor-facing preset picker. Off by default — the front door carries no decoration controls unless asked |
+
+Anything unrecognised falls back to the themed gradient rather than failing the page; the
+allowlists live in `src/app/background.types.ts` (unit-tested) and are deliberately **not**
+duplicated in shell.
+
+### Bringing your own background file
+
+An operator background is a **themeable asset**, not an upload: there is no upload endpoint in this
+repo, and the platform already ships operator-supplied art (brand fonts) by embedding it in the
+same `SNAP_THEME_CSS` text the colors ride on. A background image gets the same transport rather
+than a new one. Supply it either way:
+
+- `SNAP_BG_IMAGE_URL` — this deployment's explicit override; or
+- `--hug-login-bg-image: url("…")` in `SNAP_THEME_CSS` — the mesh's brand default.
+
+Env wins over the token. Accepted: an `https:` URL, a same-origin path, or a base64 `data:` URI of
+a **raster** image (PNG/JPEG/WEBP/AVIF/GIF) — a strict subset of what nginx's `img-src` CSP allows.
+SVG is rejected, matching the platform's existing stance on operator art (the avatar path refuses
+it too): an SVG is a document that can carry script, and this one paints on the login page. `http:`
+(a mixed-content downgrade), protocol-relative URLs and every CSS `url()` breakout character are
+rejected outright rather than escaped. The bytes are then decoded and size-checked before being
+painted, because a string check cannot tell a photograph from a 1×1 tracking pixel.
+
+### Bundle cost
+
+`three` and `vanta` are real npm dependencies bundled locally — the gateway's nonce-CSP blocks
+external hosts, so a CDN `<script>` cannot work here. They are kept off the critical path: both are
+reached only through dynamic `import()`, and `federation.config.js` skips them from the shared
+federation surface so esbuild's code splitting stays in charge. Measured against the same build at
+the previous commit:
+
+| chunk                        | raw       | transfer  |
+| ---------------------------- | --------- | --------- |
+| initial total (before)       | 131.21 kB | 40.46 kB  |
+| initial total (after)        | 131.43 kB | 40.11 kB  |
+| boot chunk (before → after)  | 131.37 → 142.70 kB | 26.56 → 29.10 kB |
+| `three` (lazy)               | 734.97 kB | 154.04 kB |
+| each effect (lazy)           | ~12–15 kB | ~4 kB     |
+
+Nothing in the bottom two rows is fetched until an effect is actually about to run — so a
+reduced-motion visitor, a machine without WebGL, and the `static`/`image` presets all pay zero.
 
 ## Develop
 

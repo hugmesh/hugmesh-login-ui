@@ -102,6 +102,87 @@ export function parseBackgroundPreset(raw: unknown): BackgroundPresetId | null {
     : null;
 }
 
+// ── the theme-declared background effect (`--sd-bg-effect`) ──────────────────────
+
+/**
+ * What a THEME can say about the background, distilled to the two things a consumer
+ * can act on: run one of the bundled animated effects, or run none ('gradient').
+ * `null` is a third state — the theme said nothing — which matters because it is the
+ * one case where a consumer's own default (here: `fog`) still applies.
+ */
+export type ThemeBackgroundEffect = BackgroundEffectId | 'gradient';
+
+/**
+ * The custom properties the declaration arrives on, in the order they are tried.
+ *
+ * `--sd-bg-effect` is the cross-repo contract token (the same `--sd-*` namespace
+ * host-shell PR #20 standardised the background on); `--hug-bg-effect` is its
+ * runtime twin — the generator's `css_root` emits every `--sd-*` token a second
+ * time under the `--hug-*` prefix, and this repo has already been burned once by
+ * reading only one side of that pair (see theme-tokens.ts on the prefix bug).
+ */
+export const THEME_EFFECT_TOKENS: readonly string[] = ['--sd-bg-effect', '--hug-bg-effect'];
+
+/**
+ * Parse one `--sd-bg-effect` declaration. The contract (README "Theme-declared
+ * effect") is:
+ *
+ *   - `gradient` — the theme wants the plain themed background. The DEFAULT.
+ *   - `none`     — no animated effect. In this consumer that renders the same as
+ *                  `gradient`: the static layer here IS a themed gradient, there is
+ *                  no flatter thing to paint.
+ *   - `vanta-<name>` — one of the bundled Vanta effects (`vanta-fog`, `vanta-waves`,
+ *                  `vanta-net`, `vanta-globe`).
+ *   - anything else — including a `vanta-<effect>` this build does not bundle —
+ *                  MUST degrade to `gradient`. That is the forward-compatibility
+ *                  clause: a future theme naming an effect this build has never
+ *                  heard of gets a clean themed page, not a boot failure.
+ *
+ * Parsing is tolerant the way a CSS custom property demands: `getPropertyValue`
+ * returns the token's RAW text, so case, whitespace and an author's optional quotes
+ * are all normalised away. `null` means "the theme said nothing" (absent/empty),
+ * never "the theme said something invalid" — invalid is `gradient` by contract.
+ */
+export function parseThemeBackgroundEffect(raw: unknown): ThemeBackgroundEffect | null {
+  if (typeof raw !== 'string') return null;
+  let value = raw.trim().toLowerCase();
+  if (
+    value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  if (!value) return null;
+  if (value === 'gradient' || value === 'none') return 'gradient';
+  if (value.startsWith('vanta-')) {
+    const id = value.slice('vanta-'.length);
+    if ((BACKGROUND_EFFECT_IDS as readonly string[]).includes(id)) return id as BackgroundEffectId;
+  }
+  return 'gradient';
+}
+
+/**
+ * The preset a theme declaration resolves to, given whether a background image is
+ * configured.
+ *
+ * `gradient`/`none` deliberately do NOT suppress a configured image: the generator
+ * emits the field's default (`gradient`) for every theme, so if it beat the image
+ * every image-shipping theme would silently lose its image the day the field
+ * appeared — the exact "my theme choices are not applied" failure this feature has
+ * already been burned by. The declaration governs the ANIMATION axis only; a
+ * `vanta-<name>` is an explicit choice and wins over the image, same as an explicit
+ * `SNAP_BG_EFFECT` does.
+ */
+export function themeEffectPreset(
+  effect: ThemeBackgroundEffect | null,
+  hasImage: boolean,
+): BackgroundPresetId {
+  if (effect === null) return hasImage ? 'image' : DEFAULT_BACKGROUND_PRESET;
+  if (effect === 'gradient') return hasImage ? 'image' : 'static';
+  return effect;
+}
+
 /** Options every effect shares. */
 function commonOptions(): Record<string, number | boolean> {
   return {

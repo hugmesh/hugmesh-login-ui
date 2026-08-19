@@ -60,6 +60,14 @@ describe('LoginBackgroundComponent', () => {
     for (const key of ['__HUG_BG_EFFECT__', '__HUG_BG_IMAGE__', '__HUG_BG_PICKER__']) {
       delete (globalThis as Record<string, unknown>)[key];
     }
+    for (const token of ['--sd-bg-effect', '--hug-bg-effect']) {
+      document.documentElement.style.removeProperty(token);
+    }
+  }
+
+  /** What a theme does: declare its background effect on :root. */
+  function setThemeEffect(value: string, token = '--sd-bg-effect'): void {
+    document.documentElement.style.setProperty(token, value);
   }
 
   /**
@@ -372,6 +380,148 @@ describe('LoginBackgroundComponent', () => {
     } finally {
       document.documentElement.removeAttribute('data-theme');
     }
+  });
+
+  // ── the theme-declared effect: --sd-bg-effect ────────────────────────────────
+
+  it('starts the effect the THEME declares via --sd-bg-effect', async () => {
+    setThemeEffect('vanta-waves');
+    await mount();
+
+    expect(loaded).toEqual(['waves']);
+    expect(fixture.componentInstance.activePreset()).toBe('waves');
+    expect(fixture.componentInstance.effectRunning()).toBeTrue();
+  });
+
+  it('reads the --hug-bg-effect runtime twin when only it is set', async () => {
+    // The generator emits every --sd-* token a second time under --hug-*; a
+    // hand-written theme may set either half of the pair.
+    setThemeEffect('vanta-globe', '--hug-bg-effect');
+    await mount();
+    expect(loaded).toEqual(['globe']);
+  });
+
+  it('degrades an unbundled vanta-<name> declaration to the themed gradient', async () => {
+    // The forward-compatibility clause: a future theme naming an effect this build
+    // does not bundle gets a clean themed page — and pays for zero chunks.
+    setThemeEffect('vanta-birds');
+    await mount();
+
+    expect(loader).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.activePreset()).toBe('static');
+  });
+
+  it('never fetches a chunk for a theme-declared effect under prefers-reduced-motion', async () => {
+    // Same guarantee as the env path: for a reduced-motion visitor the theme's
+    // declaration must not even cost the download.
+    spyOn(window, 'matchMedia').and.callFake(
+      (query: string) =>
+        ({
+          matches: query.includes('prefers-reduced-motion'),
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+    setThemeEffect('vanta-fog');
+
+    await mount();
+
+    expect(loader).not.toHaveBeenCalled();
+    expect(FakeVanta.created.length).toBe(0);
+    expect(fixture.componentInstance.effectRunning()).toBeFalse();
+  });
+
+  it('switches effects when the theme changes its declaration — old instance destroyed', async () => {
+    setThemeEffect('vanta-net');
+    await mount();
+    expect(loaded).toEqual(['net']);
+    const first = FakeVanta.created[0];
+
+    setThemeEffect('vanta-waves');
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    await waitFor(
+      () => fixture.componentInstance.activePreset() === 'waves' &&
+        fixture.componentInstance.effectRunning(),
+      'waves to take over',
+    );
+
+    // Vanta instances hold a WebGL context; a switch that does not destroy() the
+    // old one leaks the context and doubles the render loop.
+    expect(first.destroyed).withContext('old instance released').toBeTrue();
+    expect(loaded).toEqual(['net', 'waves']);
+  });
+
+  it('honours a declaration that only arrives when the theme stylesheet lands late', async () => {
+    // snap-theme.css is a <link> that can still be in flight at boot: the page
+    // starts on the shipped default and must follow the theme when it lands.
+    await mount();
+    expect(loaded).toEqual(['fog']);
+
+    setThemeEffect('vanta-globe');
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    await waitFor(() => fixture.componentInstance.activePreset() === 'globe', 'globe to take over');
+
+    expect(FakeVanta.created[0].destroyed).toBeTrue();
+    expect(loaded).toEqual(['fog', 'globe']);
+  });
+
+  it('tears the animation down when the theme switches to none', async () => {
+    setThemeEffect('vanta-fog');
+    await mount();
+    expect(fixture.componentInstance.effectRunning()).toBeTrue();
+
+    setThemeEffect('none');
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    await waitFor(() => fixture.componentInstance.activePreset() === 'static', 'the gradient');
+
+    expect(FakeVanta.created[0].destroyed).toBeTrue();
+    expect(fixture.componentInstance.effectRunning()).toBeFalse();
+    expect(loaded).withContext('no second chunk fetched').toEqual(['fog']);
+  });
+
+  it('lets the env override outrank the theme declaration, on boot and on later changes', async () => {
+    setConfig({ __HUG_BG_EFFECT__: 'net' });
+    setThemeEffect('vanta-waves');
+    await mount();
+    expect(loaded).toEqual(['net']);
+
+    setThemeEffect('vanta-globe');
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    fixture.detectChanges();
+
+    expect(loaded).withContext('env pins the preset').toEqual(['net']);
+    expect(fixture.componentInstance.activePreset()).toBe('net');
+  });
+
+  it("does not let the field's default 'gradient' suppress the operator image", async () => {
+    // The generator emits `gradient` for EVERY theme (it is the field default); the
+    // declaration governs the animation axis only, so a configured image survives it.
+    setConfig({ __HUG_BG_IMAGE__: VALID_PNG_320x240 });
+    setThemeEffect('gradient');
+    const el = await mount();
+    const stage = el.querySelector<HTMLElement>('[data-testid="login-background-stage"]')!;
+    await waitFor(() => stage.style.backgroundImage !== '', 'the image to be painted');
+
+    expect(fixture.componentInstance.activePreset()).toBe('image');
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("a visitor's pick is not moved by a later theme change", async () => {
+    setConfig({ __HUG_BG_PICKER__: true });
+    setThemeEffect('vanta-fog');
+    await mount();
+
+    fixture.componentInstance.choosePreset('static');
+    await fixture.whenStable();
+    setThemeEffect('vanta-waves');
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activePreset()).toBe('static');
+    expect(loaded).withContext('the pick pins the preset').toEqual(['fog']);
   });
 
   // ── the optional picker ──────────────────────────────────────────────────────

@@ -6,8 +6,10 @@ import {
   extractCssUrl,
   isBackgroundEffect,
   parseBackgroundPreset,
+  parseThemeBackgroundEffect,
   resolveBackgroundPreset,
   safeBackgroundImageUrl,
+  themeEffectPreset,
   vantaOptionsFor,
   worstCaseTextContrast,
 } from './background.types';
@@ -67,6 +69,70 @@ describe('background.types', () => {
       expect(resolveBackgroundPreset('image', true)).toBe('image');
       expect(resolveBackgroundPreset('fog', false)).toBe('fog');
       expect(resolveBackgroundPreset('static', true)).toBe('static');
+    });
+  });
+
+  describe('parseThemeBackgroundEffect (--sd-bg-effect contract)', () => {
+    it('maps vanta-<name> to each bundled effect', () => {
+      for (const id of BACKGROUND_EFFECT_IDS) {
+        expect(parseThemeBackgroundEffect(`vanta-${id}`)).toBe(id);
+      }
+    });
+
+    it('accepts the two non-animated declarations', () => {
+      expect(parseThemeBackgroundEffect('gradient')).toBe('gradient');
+      // `none` renders the same as `gradient` here: the static layer IS a themed
+      // gradient — there is nothing flatter for this page to paint.
+      expect(parseThemeBackgroundEffect('none')).toBe('gradient');
+    });
+
+    it('is tolerant of the raw text a CSS custom property arrives as', () => {
+      // getPropertyValue returns the author's raw token text: whitespace survives,
+      // case is whatever was typed, and quoting the value is legal CSS.
+      expect(parseThemeBackgroundEffect('  Vanta-FOG ')).toBe('fog');
+      expect(parseThemeBackgroundEffect('"vanta-waves"')).toBe('waves');
+      expect(parseThemeBackgroundEffect("'gradient'")).toBe('gradient');
+    });
+
+    it('degrades any unknown or unbundled value to gradient — the forward-compat clause', () => {
+      // A future theme naming an effect this build does not bundle must get a clean
+      // themed page, never a boot failure and never a dead rectangle.
+      expect(parseThemeBackgroundEffect('vanta-birds')).toBe('gradient');
+      expect(parseThemeBackgroundEffect('vanta-confetti')).toBe('gradient');
+      expect(parseThemeBackgroundEffect('sparkles')).toBe('gradient');
+      // The bare effect id is NOT contract vocabulary (that is the env var's
+      // spelling); unknown ⇒ gradient applies to it too.
+      expect(parseThemeBackgroundEffect('fog')).toBe('gradient');
+    });
+
+    it('returns null — "the theme said nothing" — only for absence, never for junk', () => {
+      expect(parseThemeBackgroundEffect('')).toBeNull();
+      expect(parseThemeBackgroundEffect('   ')).toBeNull();
+      expect(parseThemeBackgroundEffect(undefined)).toBeNull();
+      expect(parseThemeBackgroundEffect(null)).toBeNull();
+      expect(parseThemeBackgroundEffect(42)).toBeNull();
+    });
+  });
+
+  describe('themeEffectPreset', () => {
+    it('resolves a declared effect to its preset, over an image too', () => {
+      // vanta-<name> is an explicit animation choice — it outranks the image the
+      // same way an explicit SNAP_BG_EFFECT does.
+      expect(themeEffectPreset('waves', false)).toBe('waves');
+      expect(themeEffectPreset('waves', true)).toBe('waves');
+    });
+
+    it('lets gradient/none coexist with a configured image', () => {
+      // The generator emits the field default (`gradient`) for EVERY theme; if that
+      // suppressed the image, every image-shipping theme would lose its image the
+      // day the field appeared.
+      expect(themeEffectPreset('gradient', true)).toBe('image');
+      expect(themeEffectPreset('gradient', false)).toBe('static');
+    });
+
+    it('keeps the shipped default chain when the theme says nothing', () => {
+      expect(themeEffectPreset(null, false)).toBe(DEFAULT_BACKGROUND_PRESET);
+      expect(themeEffectPreset(null, true)).toBe('image');
     });
   });
 

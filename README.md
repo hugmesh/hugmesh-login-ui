@@ -73,6 +73,47 @@ Anything unrecognised falls back to the themed gradient rather than failing the 
 allowlists live in `src/app/background.types.ts` (unit-tested) and are deliberately **not**
 duplicated in shell.
 
+### Theme-declared effect: `--sd-bg-effect`
+
+The theme itself can declare the background effect — the same `SNAP_THEME_CSS` transport the
+colors ride on, so picking an effect in the generator's Themes editor needs no per-service env.
+**The contract** (shared with [hugmesh-host-shell#19](https://github.com/hugmesh/hugmesh-host-shell/issues/19);
+host-shell PR #20 standardized the `--sd-*` token namespace it lives in):
+
+```css
+:root {
+  --sd-bg-effect: vanta-fog; /* 'gradient' (default) | 'none' | 'vanta-<name>' */
+}
+```
+
+| value          | meaning                                                                    |
+| -------------- | -------------------------------------------------------------------------- |
+| `gradient`     | the theme's plain background — the **default**, and what every unknown value degrades to |
+| `none`         | no animated effect. Renders the same as `gradient` here: this page's static layer *is* a themed gradient |
+| `vanta-<name>` | one of the bundled effects: `vanta-fog`, `vanta-waves`, `vanta-net`, `vanta-globe` |
+
+Consumers **must parse tolerantly** (case, whitespace, optional quotes) and **must treat any
+unknown or unbundled value as `gradient`** — a theme naming `vanta-birds`, or an effect a future
+build bundles and this one does not, gets a clean themed page instead of a boot failure or a dead
+rectangle. That is what makes the token forward-compatible: the generator can grow the vocabulary
+without any consumer shipping first. The generator's `css_root` also emits the token's runtime
+twin `--hug-bg-effect`; this repo reads `--sd-bg-effect` first and the twin second.
+
+Precedence, most specific wins — the same ladder the background image uses:
+
+1. the visitor's own pick (only while `SNAP_BG_PICKER` is on),
+2. `SNAP_BG_EFFECT` — this deployment's explicit env override,
+3. `--sd-bg-effect` — the mesh's brand default, re-read on every theme change (a switch destroys
+   the running Vanta instance before starting the next; an undestroyed instance leaks its WebGL
+   context),
+4. `image` if a background file is configured, else `fog`.
+
+`gradient`/`none` govern the **animation axis only**: they do not suppress a configured
+background image (the generator emits the field's default for every theme, so letting it beat the
+image would silently un-configure every image-shipping mesh). A `vanta-<name>` is an explicit
+choice and covers the image, exactly like an explicit `SNAP_BG_EFFECT`. `prefers-reduced-motion`
+outranks everything on this list: the effect is never started and its chunks are never fetched.
+
 ### Bringing your own background file
 
 An operator background is a **themeable asset**, not an upload: there is no upload endpoint in this

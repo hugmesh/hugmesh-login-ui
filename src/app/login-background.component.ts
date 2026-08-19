@@ -20,11 +20,15 @@ import {
   BackgroundEffectId,
   BackgroundPresetId,
   DEFAULT_BACKGROUND_PRESET,
+  THEME_EFFECT_TOKENS,
+  ThemeBackgroundEffect,
   extractCssUrl,
   isBackgroundEffect,
   parseBackgroundPreset,
+  parseThemeBackgroundEffect,
   resolveBackgroundPreset,
   safeBackgroundImageUrl,
+  themeEffectPreset,
   vantaOptionsFor,
 } from './background.types';
 import {
@@ -75,6 +79,8 @@ interface BackgroundConfig {
   readonly preset: BackgroundPresetId;
   readonly image: string | null;
   readonly picker: boolean;
+  /** True when the ENV named a preset explicitly — theme-token changes must not move it. */
+  readonly pinned: boolean;
 }
 
 /**
@@ -146,6 +152,15 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
 
   private instance: VantaInstance | null = null;
   private instanceEffect: BackgroundEffectId | null = null;
+  /** The theme's last-seen `--sd-bg-effect` declaration (null: the theme said nothing). */
+  private themeEffect: ThemeBackgroundEffect | null = null;
+  /**
+   * True once something MORE SPECIFIC than the theme owns the preset: an explicit
+   * `SNAP_BG_EFFECT` env, or the visitor's own pick. A pinned preset never follows
+   * `--sd-bg-effect` — the token is the mesh's brand default, and both of those
+   * outrank it for the same reason the env background image outranks the theme's.
+   */
+  private presetPinned = false;
   /** Monotonic token so a slow lazy import cannot revive a preset already switched away from. */
   private startToken = 0;
   private observers: MutationObserver[] = [];
@@ -177,6 +192,7 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
     const config = this.readConfig();
     this.imageUrl.set(config.image);
     this.pickerEnabled.set(config.picker);
+    this.presetPinned = config.pinned;
     this.activePreset.set(resolveBackgroundPreset(this.initialPreset(config), !!config.image));
     this.watchReducedMotion();
     this.watchTheme();
@@ -227,6 +243,9 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
     const picked = parseBackgroundPreset(raw);
     if (!picked) return;
     const next = resolveBackgroundPreset(picked, !!this.imageUrl());
+    // A deliberate pick outranks the theme's `--sd-bg-effect` from here on, even
+    // when it happens to match the current preset.
+    this.presetPinned = true;
     if (next === this.activePreset()) return;
     this.activePreset.set(next);
     try {
@@ -262,10 +281,17 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
     // the default animation to cover it. An explicit SNAP_BG_EFFECT still wins, so
     // "ship the image but show fog today" stays expressible.
     const requested = parseBackgroundPreset(globals['__HUG_BG_EFFECT__']);
+    // The theme's own `--sd-bg-effect` sits BETWEEN the env override and the shipped
+    // default — the exact precedence the background image token already uses. It may
+    // not have arrived yet (snap-theme.css is a <link> that can still be in flight);
+    // watchTheme() re-reads it on every theme change, so a late declaration is
+    // honoured the moment the stylesheet lands.
+    this.themeEffect = this.themeEffectToken();
     return {
-      preset: requested ?? (image ? 'image' : DEFAULT_BACKGROUND_PRESET),
+      preset: requested ?? themeEffectPreset(this.themeEffect, !!image),
       image,
       picker: globals['__HUG_BG_PICKER__'] === true,
+      pinned: requested !== null,
     };
   }
 
@@ -273,6 +299,22 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
   private themeImageToken(): string | null {
     if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return null;
     return extractCssUrl(getComputedStyle(document.documentElement).getPropertyValue(IMAGE_TOKEN));
+  }
+
+  /**
+   * The theme's `--sd-bg-effect` declaration (or its `--hug-bg-effect` runtime
+   * twin), parsed. The first token that HAS a value decides — the twins are emitted
+   * together by the generator, so consulting the second is only ever a fallback for
+   * a hand-written theme that set one and not the other.
+   */
+  private themeEffectToken(): ThemeBackgroundEffect | null {
+    if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return null;
+    const style = getComputedStyle(document.documentElement);
+    for (const token of THEME_EFFECT_TOKENS) {
+      const raw = style.getPropertyValue(token);
+      if (raw && raw.trim()) return parseThemeBackgroundEffect(raw);
+    }
+    return null;
   }
 
   /**
@@ -284,7 +326,13 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
   private initialPreset(config: BackgroundConfig): BackgroundPresetId {
     if (!config.picker) return config.preset;
     try {
-      return parseBackgroundPreset(localStorage.getItem(PRESET_STORAGE_KEY)) ?? config.preset;
+      const stored = parseBackgroundPreset(localStorage.getItem(PRESET_STORAGE_KEY));
+      if (stored) {
+        // A remembered pick is the visitor's, so the theme may not override it.
+        this.presetPinned = true;
+        return stored;
+      }
+      return config.preset;
     } catch {
       return config.preset;
     }
@@ -520,10 +568,49 @@ export class LoginBackgroundComponent implements OnInit, AfterViewInit, OnDestro
     });
   }
 
-  /** Re-read the tokens; publish only when a colour actually moved. */
+  /**
+   * Re-read the tokens; publish only what actually moved.
+   *
+   * Two independent outcomes ride the same notification: a COLOUR change restyles a
+   * running effect in place (via the palette signal → setOptions), while a
+   * `--sd-bg-effect` change swaps the preset — the old instance is destroyed (Vanta
+   * leaks its WebGL context otherwise) and the new effect starts through the same
+   * lazy-load path as at boot.
+   */
   private refreshPalette(): void {
-    const next = readThemePalette();
-    if (paletteFingerprint(next) === paletteFingerprint(this.palette())) return;
-    this.zone.run(() => this.palette.set(next));
+    const nextPalette = readThemePalette();
+    const nextEffect = this.themeEffectToken();
+    const paletteChanged =
+      paletteFingerprint(nextPalette) !== paletteFingerprint(this.palette());
+    const effectChanged = nextEffect !== this.themeEffect;
+    if (!paletteChanged && !effectChanged) return;
+
+    this.zone.run(() => {
+      if (paletteChanged) this.palette.set(nextPalette);
+      if (effectChanged) {
+        this.themeEffect = nextEffect;
+        this.applyThemeEffect();
+      }
+    });
+  }
+
+  /**
+   * The theme (re)declared its background effect: honour it, unless the preset is
+   * pinned by something more specific (env, or the visitor's own pick).
+   *
+   * Switching goes through applyPreset(), which destroys the running Vanta instance
+   * BEFORE starting the next one — two instances on one element is a leaked WebGL
+   * context and a doubled render loop — and whose start token already makes a slow
+   * chunk load lose to a faster subsequent switch.
+   */
+  private applyThemeEffect(): void {
+    if (this.presetPinned) return;
+    const next = resolveBackgroundPreset(
+      themeEffectPreset(this.themeEffect, !!this.imageUrl()),
+      !!this.imageUrl(),
+    );
+    if (next === this.activePreset()) return;
+    this.activePreset.set(next);
+    void this.applyPreset();
   }
 }

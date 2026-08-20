@@ -1,5 +1,23 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { SessionService, SnapSession } from './session.service';
+
+/**
+ * `/bff/session` + `/bff/sessionOut` now go through the generated, typed
+ * AuthControllerService (Angular {@code HttpClient}), so the suite drives them
+ * through {@link HttpTestingController} instead of a {@code fetch} spy. The
+ * contract is unchanged: same paths + methods, and the httpOnly `bff_` cookie
+ * rides along as {@code withCredentials} in place of {@code credentials: 'include'}.
+ * SessionService now uses {@code inject()}, so the direct-construction cases run
+ * inside {@link TestBed.runInInjectionContext}.
+ */
+const HTTP = [provideHttpClient(), provideHttpClientTesting()];
+
+/** A sibling in-page SessionService instance (the host shell holds its own). */
+function siblingService(): SessionService {
+  return TestBed.runInInjectionContext(() => new SessionService());
+}
 
 function makeSession(over: Partial<SnapSession> = {}): SnapSession {
   return {
@@ -18,7 +36,7 @@ describe('SessionService', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     service = TestBed.inject(SessionService);
   });
 
@@ -33,14 +51,14 @@ describe('SessionService', () => {
 
   it('hydrates an existing session from localStorage on construction', () => {
     localStorage.setItem(KEY, JSON.stringify(makeSession({ label: 'persisted' })));
-    const fresh = new SessionService();
+    const fresh = siblingService();
     expect(fresh.session()?.label).toBe('persisted');
     expect(fresh.loggedIn()).toBeTrue();
   });
 
   it('tolerates a malformed stored session (returns null, no throw)', () => {
     localStorage.setItem(KEY, '{not valid json');
-    const fresh = new SessionService();
+    const fresh = siblingService();
     expect(fresh.session()).toBeNull();
   });
 
@@ -81,20 +99,19 @@ describe('SessionService', () => {
   it('clear() removes the session, the persisted metadata, AND logs out the bff_ cookie', () => {
     // Auth now rides in the httpOnly bff_ cookie in every mode, so logout must
     // hit POST /bff/sessionOut to expire the server session — not just localStorage.
-    const fetchSpy = spyOn(globalThis as any, 'fetch').and.resolveTo(new Response('{}', { status: 200 }));
+    const httpMock = TestBed.inject(HttpTestingController);
     service.set(makeSession());
     service.clear();
     expect(service.session()).toBeNull();
     expect(localStorage.getItem(KEY)).toBeNull();
-    expect(fetchSpy).toHaveBeenCalled();
-    const [url, init] = fetchSpy.calls.mostRecent().args as [string, RequestInit];
-    expect(url.endsWith('/bff/sessionOut')).toBeTrue();
-    expect(init.method).toBe('POST');
-    expect(init.credentials).toBe('include');
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/sessionOut'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({});
   });
 
   it('broadcasts a same-document event on write so sibling instances re-read', () => {
-    const other = new SessionService();
+    const other = siblingService();
     expect(other.session()).toBeNull();
     // `service` writing must wake `other` (both share the same localStorage key).
     service.set(makeSession({ label: 'broadcasted' }));
@@ -125,7 +142,7 @@ describe('SessionService (cookie mode)', () => {
     (globalThis as any).__HUG_SESSION_COOKIE_MODE__ = true;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     svc = TestBed.inject(SessionService);
   });
 
@@ -137,7 +154,12 @@ describe('SessionService (cookie mode)', () => {
 
   it('reports cookieMode and starts EMPTY (does not read localStorage)', () => {
     localStorage.setItem(KEY, JSON.stringify(makeSession({ label: 'stale' })));
-    const fresh = new SessionService();
+    // Rebuild through the TestBed rather than `new`: an injector-owned instance is
+    // destroyed with the module, so its BroadcastChannel re-hydrate listener does
+    // not outlive the test (see SessionService.ngOnDestroy).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
+    const fresh = TestBed.inject(SessionService);
     expect(fresh.cookieMode).toBeTrue();
     // cookie mode IGNORES any persisted session — the cookie is authoritative.
     expect(fresh.session()).toBeNull();
@@ -150,31 +172,29 @@ describe('SessionService (cookie mode)', () => {
   });
 
   it('clear() calls POST /bff/sessionOut and drops local state', async () => {
-    const fetchSpy = spyOn(globalThis as any, 'fetch').and.resolveTo(
-      new Response('{}', { status: 200 }));
+    const httpMock = TestBed.inject(HttpTestingController);
     svc.set(makeSession());
     svc.clear();
     expect(svc.session()).toBeNull();
-    expect(fetchSpy).toHaveBeenCalled();
-    const [url, init] = fetchSpy.calls.mostRecent().args as [string, RequestInit];
-    expect(url.endsWith('/bff/sessionOut')).toBeTrue();
-    expect(init.method).toBe('POST');
-    expect(init.credentials).toBe('include');
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/sessionOut'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({});
   });
 
   it('hydrate() loads {roles,registrationComplete} from GET /bff/session with credentials', async () => {
-    const fetchSpy = spyOn(globalThis as any, 'fetch').and.resolveTo(
-      new Response(JSON.stringify({ roles: ['user', 'admin'], registrationComplete: true, mfaSatisfied: false }),
-        { status: 200 }));
-    const s = await svc.hydrate();
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/session'));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ roles: ['user', 'admin'], registrationComplete: true, mfaSatisfied: false });
+    const s = await pending;
     expect(s?.roles).toEqual(['user', 'admin']);
     expect(svc.isAdmin()).toBeTrue();
     expect(svc.fullyRegistered()).toBeTrue();
     // no token is exposed in cookie mode (auth rides the httpOnly cookie).
     expect((s as any)?.bffToken).toBeUndefined();
-    const [url, init] = fetchSpy.calls.mostRecent().args as [string, RequestInit];
-    expect(url.endsWith('/bff/session')).toBeTrue();
-    expect(init.credentials).toBe('include');
     // Genuine cookie-mode's OWN "never persist" contract must be unaffected by the
     // OIDC-mode persistence fix elsewhere in hydrate() — set()'s cookieModeEnabled()
     // gate is what's relied on here, asserted directly at the hydrate() call site.
@@ -186,12 +206,22 @@ describe('SessionService (cookie mode)', () => {
     // so login()'s hardcoded roles:['user'] guess was never corrected — /mod's
     // guard then denied its own moderator and crashed the remote's router
     // (NG04002 '/login'), i.e. "no clear way to administer matrix/mastodon".
+    //
+    // NOTE — PRE-EXISTING FAILURE, red at origin/main too and NOT caused by the
+    // ng-openapi-gen migration: this case sits in the COOKIE-mode describe (which
+    // sets __HUG_SESSION_COOKIE_MODE__), where set() deliberately persists
+    // nothing, so the localStorage assertion below cannot hold. The equivalent
+    // localStorage-mode case passes in the OIDC describe further down. Ported to
+    // the HTTP layer unchanged rather than fixed here — fixing the placement is a
+    // separate change, and leaving it as a `fetch` spy would have made it a FALSE
+    // GREEN once the call moved off `fetch`.
+    const httpMock = TestBed.inject(HttpTestingController);
     svc.set({ id: '', label: 'e2e-mod', provider: 'password', roles: ['user'],
               registrationComplete: true } as any);
-    spyOn(globalThis as any, 'fetch').and.resolveTo(
-      new Response(JSON.stringify({ roles: ['mod'], registrationComplete: true }),
-        { status: 200 }));
-    const s = await svc.hydrate();
+    const pending = svc.hydrate();
+    httpMock.expectOne((r) => r.url.includes('/bff/session'))
+      .flush({ roles: ['mod'], registrationComplete: true });
+    const s = await pending;
     expect(s?.roles).toEqual(['mod']);
     // the caller-established identity survives (the shell renders this label)
     expect(s?.label).toBe('e2e-mod');
@@ -201,9 +231,12 @@ describe('SessionService (cookie mode)', () => {
   });
 
   it('hydrate() drops to null on a non-OK /bff/session (not logged in)', async () => {
+    const httpMock = TestBed.inject(HttpTestingController);
     svc.set(makeSession());
-    spyOn(globalThis as any, 'fetch').and.resolveTo(new Response('', { status: 401 }));
-    const s = await svc.hydrate();
+    const pending = svc.hydrate();
+    httpMock.expectOne((r) => r.url.includes('/bff/session'))
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    const s = await pending;
     expect(s).toBeNull();
     expect(svc.session()).toBeNull();
   });
@@ -224,7 +257,7 @@ describe('SessionService (localStorage mode csrfHeader)', () => {
   it('csrfHeader() is empty and cookieMode is false by default', () => {
     delete (globalThis as any).__HUG_SESSION_COOKIE_MODE__;
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     expect(svc.cookieMode).toBeFalse();
     expect(svc.csrfHeader()).toEqual({});
@@ -243,29 +276,40 @@ describe('SessionService (OIDC session mode)', () => {
   it('oidcSessionMode is FALSE by default (dark) and hydrate() is a no-op', async () => {
     delete (globalThis as any).__HUG_OIDC_ENABLED__;
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     expect(svc.oidcSessionMode).toBeFalse();
-    const fetchSpy = spyOn(globalThis as any, 'fetch');
     // localStorage mode + OIDC off → hydrate must NOT hit the network.
-    await svc.hydrate();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    //
+    // NOTE — PRE-EXISTING FAILURE, red at origin/main too and NOT caused by the
+    // ng-openapi-gen migration: hydrate() has deliberately hit /bff/session in
+    // EVERY mode since the 2026-08-14 roles-correction fix (see its javadoc), so
+    // this assertion no longer matches the implementation. Restated at the HTTP
+    // layer with its intent intact rather than left as a `fetch` spy, which the
+    // migration would have turned into a FALSE GREEN. Reconciling the two is a
+    // separate change.
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    const issued = httpMock.match(() => true);
+    issued.forEach((r) => r.flush(null, { status: 401, statusText: 'Unauthorized' }));
+    await pending;
+    expect(issued.length).toBe(0);
   });
 
   it('with OIDC on (cookie-mode flag off), hydrate() fetches /bff/session, tags provider=oidc, NO token persisted', async () => {
     (globalThis as any).__HUG_OIDC_ENABLED__ = true;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     expect(svc.oidcSessionMode).toBeTrue();
-    const fetchSpy = spyOn(globalThis as any, 'fetch').and.resolveTo(
-      new Response(JSON.stringify({ roles: ['user', 'admin'], registrationComplete: true }), { status: 200 }),
-    );
-    const s = await svc.hydrate();
-    const [url, init] = fetchSpy.calls.mostRecent().args as [string, RequestInit];
-    expect(url.endsWith('/bff/session')).toBeTrue();
-    expect(init.credentials).toBe('include');
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/session'));
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ roles: ['user', 'admin'], registrationComplete: true });
+    const s = await pending;
     expect(s?.provider).toBe('oidc');
     // Browser holds ONLY the opaque bff_ cookie — never a JWT/bffToken.
     expect((s as any)?.bffToken).toBeUndefined();
@@ -286,14 +330,17 @@ describe('SessionService (OIDC session mode)', () => {
     (globalThis as any).__HUG_OIDC_ENABLED__ = true;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     // Seed a stale persisted session first, so we can prove hydrate() clears it.
     svc.set({ id: '', label: 'x', provider: 'oidc', roles: ['user'], registrationComplete: false });
     expect(localStorage.getItem('hug.session')).not.toBeNull();
 
-    spyOn(globalThis as any, 'fetch').and.resolveTo(new Response(null, { status: 401 }));
-    const s = await svc.hydrate();
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    httpMock.expectOne((r) => r.url.includes('/bff/session'))
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    const s = await pending;
     expect(s).toBeNull();
     expect(localStorage.getItem('hug.session')).toBeNull();
     expect(svc.loggedIn()).toBeFalse();
@@ -321,12 +368,13 @@ describe('SessionService (__HUG_SESSION__ probe)', () => {
     (globalThis as any).__HUG_OIDC_ENABLED__ = true;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
-    spyOn(globalThis as any, 'fetch').and.resolveTo(
-      new Response(JSON.stringify({ roles: ['user', 'admin', 'superadmin'], registrationComplete: true }), { status: 200 }),
-    );
-    await svc.hydrate();
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    httpMock.expectOne((r) => r.url.includes('/bff/session'))
+      .flush({ roles: ['user', 'admin', 'superadmin'], registrationComplete: true });
+    await pending;
     const probe = (globalThis as any)[PROBE];
     // Roles are mirrored VERBATIM — no drop, no up-case, order preserved.
     expect(probe.roles).toEqual(['user', 'admin', 'superadmin']);
@@ -341,16 +389,19 @@ describe('SessionService (__HUG_SESSION__ probe)', () => {
     (globalThis as any).__HUG_OIDC_ENABLED__ = true;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
-    spyOn(globalThis as any, 'fetch').and.resolveTo(new Response('', { status: 401 }));
-    await svc.hydrate();
+    const httpMock = TestBed.inject(HttpTestingController);
+    const pending = svc.hydrate();
+    httpMock.expectOne((r) => r.url.includes('/bff/session'))
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    await pending;
     expect((globalThis as any)[PROBE]).toBeNull();
   });
 
   it('mirrors a legacy localStorage set() onto the probe too', () => {
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [SessionService] });
+    TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     svc.set(makeSession({ roles: ['user', 'mod'] }));
     expect((globalThis as any)[PROBE].roles).toEqual(['user', 'mod']);

@@ -4430,6 +4430,71 @@
         }
       }
     },
+    "/bff/me/appeal" : {
+      "get" : {
+        "tags" : [ "account-appeal-user-controller" ],
+        "summary" : "My appeals",
+        "operationId" : "accountAppealMine",
+        "parameters" : [ {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AccountAppeal"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "account-appeal-user-controller" ],
+        "summary" : "Submit appeal",
+        "operationId" : "accountAppealSubmit",
+        "parameters" : [ {
+          "name" : "Authorization",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccountAppealSubmit"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountAppeal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bff/me/namespaces" : {
       "get" : {
         "tags" : [ "auth-controller" ],
@@ -6403,6 +6468,61 @@
   },
   "components" : {
     "schemas" : {
+      "AccountAppealSubmit" : {
+        "required" : [ "reason" ],
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "contactEmail" : {
+            "maxLength" : 320,
+            "minLength" : 0,
+            "type" : "string",
+            "format" : "email",
+            "nullable" : true
+          }
+        }
+      },
+      "AccountAppeal" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "userSub" : {
+            "type" : "string"
+          },
+          "handle" : {
+            "type" : "string"
+          },
+          "domain" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "contactEmail" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "submittedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decidedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          }
+        }
+      },
       "WorkloadConfigRequest" : {
         "type" : "object",
         "properties" : {

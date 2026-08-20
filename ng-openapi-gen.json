@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/ng-openapi-gen/ng-openapi-gen-schema.json",
   "input": "openapi.json",
+  "templates": "templates",
   "output": "src/app/api",
   "skipJsonSuffix": true,
   "enumStyle": "alias",

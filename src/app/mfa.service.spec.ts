@@ -1,16 +1,8 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MfaService } from './mfa.service';
 import { SessionService, SnapSession } from './session.service';
-
-/** Minimal fetch Response stub (mirrors bff.service.spec / appeal-contact.spec). */
-function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
-  const status = init?.status ?? 200;
-  return {
-    ok: init?.ok ?? (status >= 200 && status < 300),
-    status,
-    json: async () => body,
-  } as unknown as Response;
-}
 
 const SESSION: SnapSession = {
   id: 'google:alice@gmail.com',
@@ -20,131 +12,152 @@ const SESSION: SnapSession = {
   registrationComplete: true,
 };
 
+/**
+ * After the ng-openapi-gen migration this service delegates to the generated
+ * MfaEnrollment/MfaChallenge controller clients (Angular {@code HttpClient}), so
+ * the suite drives the BFF through {@link HttpTestingController} instead of a
+ * {@code fetch} spy (mirrors appeal-contact.service.spec). The contract is
+ * unchanged: same paths/methods/bodies, the cookie is attached via
+ * {@code withCredentials} (the generated transport's credentialed opt-in) in
+ * place of {@code credentials: 'include'}, never a Bearer, and a 503 is DARK.
+ */
 describe('MfaService', () => {
   let service: MfaService;
   let session: SessionService;
-  let fetchSpy: jasmine.Spy;
+  let httpMock: HttpTestingController;
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [MfaService, SessionService] });
+    TestBed.configureTestingModule({
+      providers: [MfaService, SessionService, provideHttpClient(), provideHttpClientTesting()],
+    });
     service = TestBed.inject(MfaService);
     session = TestBed.inject(SessionService);
     session.set(SESSION);
-    fetchSpy = spyOn(globalThis, 'fetch');
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => localStorage.clear());
 
-  function lastUrl(): string {
-    return String(fetchSpy.calls.mostRecent().args[0]);
-  }
-  function lastInit(): RequestInit {
-    return (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
-  }
-  function lastHeaders(): Record<string, string> {
-    return (lastInit().headers ?? {}) as Record<string, string>;
+  /** The single outstanding /bff/mfa/* request. */
+  function expectCall(path: string) {
+    return httpMock.expectOne((r) => r.url.includes(path));
   }
 
   it('enrollTotp POSTs the enroll path and returns the display-once secret', async () => {
-    fetchSpy.and.resolveTo(
-      jsonResponse({ factorId: 'f1', otpauthUri: 'otpauth://totp/x', secret: 'BASE32SECRET' }),
-    );
-    const r = await service.enrollTotp();
-    expect(lastUrl()).toContain('/bff/mfa/enroll/totp');
-    expect(lastInit().method).toBe('POST');
+    const p = service.enrollTotp();
+    const req = expectCall('/bff/mfa/enroll/totp');
+    expect(req.request.method).toBe('POST');
+    req.flush({ factorId: 'f1', otpauthUri: 'otpauth://totp/x', secret: 'BASE32SECRET' });
+    const r = await p;
     expect(r.ok).toBeTrue();
     expect(r.data?.secret).toBe('BASE32SECRET');
   });
 
-  it('authenticates via the bff_ cookie: sends credentials:include and NO Bearer header', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ factors: [] }));
-    await service.factors();
-    const headers = lastHeaders();
-    expect(headers['authorization']).toBeUndefined();
-    expect(lastInit().credentials).toBe('include');
+  it('authenticates via the bff_ cookie: sends withCredentials and NO Bearer header', async () => {
+    const p = service.factors();
+    const req = expectCall('/bff/mfa/factors');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ factors: [] });
+    await p;
   });
 
   it('NEVER puts the subject/owner in the request body (owner == authenticated session)', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ factorId: 'f1', otpauthUri: 'x', secret: 's' }));
-    await service.enrollTotp();
+    const start = service.enrollTotp();
     // enroll/totp takes no body at all.
-    expect(lastInit().body).toBeUndefined();
+    expectCall('/bff/mfa/enroll/totp').flush({ factorId: 'f1', otpauthUri: 'x', secret: 's' });
+    await start;
 
-    fetchSpy.and.resolveTo(jsonResponse({ enabled: true, recoveryCodes: [] }));
-    await service.verifyTotp('123456');
-    const body = JSON.parse(String(lastInit().body));
+    const verify = service.verifyTotp('123456');
+    const req = expectCall('/bff/mfa/enroll/totp/verify');
+    const body = req.request.body as Record<string, unknown>;
     expect(body).toEqual({ passcode: '123456' });
-    expect(body.subject).toBeUndefined();
-    expect(body.owner).toBeUndefined();
-    expect(body.id).toBeUndefined();
+    expect(body['subject']).toBeUndefined();
+    expect(body['owner']).toBeUndefined();
+    expect(body['id']).toBeUndefined();
+    req.flush({ enabled: true, recoveryCodes: [] });
+    await verify;
   });
 
   it('maps a 503 from ANY /bff/mfa/* call to a DARK result (not an error)', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ error: 'ships dark' }, { ok: false, status: 503 }));
-    const r = await service.factors();
+    const p = service.factors();
+    expectCall('/bff/mfa/factors').flush({ error: 'ships dark' },
+      { status: 503, statusText: 'Service Unavailable' });
+    const r = await p;
     expect(r.dark).toBeTrue();
     expect(r.ok).toBeFalse();
     expect(r.error).toBeUndefined();
   });
 
   it('verifyTotp surfaces a 401 as a non-dark failure with the status', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ error: 'bad code' }, { ok: false, status: 401 }));
-    const r = await service.verifyTotp('000000');
+    const p = service.verifyTotp('000000');
+    expectCall('/bff/mfa/enroll/totp/verify').flush({ error: 'bad code' },
+      { status: 401, statusText: 'Unauthorized' });
+    const r = await p;
     expect(r.dark).toBeFalse();
     expect(r.status).toBe(401);
     expect(r.ok).toBeFalse();
+    expect(r.error).toBe('bad code');
   });
 
   it('verifyWebauthn POSTs the attestation as a JSON string field', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ factorId: 'w1', enabled: true }));
-    await service.verifyWebauthn('{"id":"abc"}');
-    expect(lastUrl()).toContain('/bff/mfa/enroll/webauthn/verify');
-    expect(JSON.parse(String(lastInit().body))).toEqual({ attestation: '{"id":"abc"}' });
+    const p = service.verifyWebauthn('{"id":"abc"}');
+    const req = expectCall('/bff/mfa/enroll/webauthn/verify');
+    expect(req.request.body).toEqual({ attestation: '{"id":"abc"}' });
+    req.flush({ factorId: 'w1', enabled: true });
+    await p;
   });
 
   it('assertWebauthnOptions POSTs the assert-options path with no body', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ challenge: 'c', rpId: 'r', rpName: 'n' }));
-    await service.assertWebauthnOptions();
-    expect(lastUrl()).toContain('/bff/mfa/assert/webauthn/options');
-    expect(lastInit().body).toBeUndefined();
+    const p = service.assertWebauthnOptions();
+    const req = expectCall('/bff/mfa/assert/webauthn/options');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeNull();
+    req.flush({ challenge: 'c', rpId: 'r', rpName: 'n' });
+    await p;
   });
 
   it('factors() GETs the list path (no secrets relied on by the client)', async () => {
-    fetchSpy.and.resolveTo(
-      jsonResponse({ factors: [{ id: 'f1', type: 'TOTP', enabled: true, createdAt: '2026-01-01T00:00:00Z' }] }),
-    );
-    const r = await service.factors();
-    expect(lastUrl()).toContain('/bff/mfa/factors');
-    expect(lastInit().method).toBe('GET');
+    const p = service.factors();
+    const req = expectCall('/bff/mfa/factors');
+    expect(req.request.method).toBe('GET');
+    req.flush({ factors: [{ id: 'f1', type: 'TOTP', enabled: true, createdAt: '2026-01-01T00:00:00Z' }] });
+    const r = await p;
     expect(r.data?.factors[0].id).toBe('f1');
   });
 
   it('removeFactor DELETEs the per-factor path (URL-encoded id)', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ removed: true }));
-    await service.removeFactor('a/b');
-    expect(lastInit().method).toBe('DELETE');
-    expect(lastUrl()).toContain('/bff/mfa/factors/a%2Fb');
+    const p = service.removeFactor('a/b');
+    const req = expectCall('/bff/mfa/factors/');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.url).toContain('/bff/mfa/factors/a%2Fb');
+    req.flush({ removed: true });
+    await p;
   });
 
   it('removeFactor surfaces a 403 (needs fresh step-up) as a non-dark failure', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ error: 'requires a fresh MFA step-up' }, { ok: false, status: 403 }));
-    const r = await service.removeFactor('f1');
+    const p = service.removeFactor('f1');
+    expectCall('/bff/mfa/factors/').flush({ error: 'requires a fresh MFA step-up' },
+      { status: 403, statusText: 'Forbidden' });
+    const r = await p;
     expect(r.status).toBe(403);
     expect(r.dark).toBeFalse();
   });
 
   it('challenge POSTs factor + credential to the existing challenge endpoint', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ mfaSatisfied: true }));
-    const r = await service.challenge('totp', '123456');
-    expect(lastUrl()).toContain('/bff/mfa/challenge');
-    expect(JSON.parse(String(lastInit().body))).toEqual({ factor: 'totp', credential: '123456' });
+    const p = service.challenge('totp', '123456');
+    const req = expectCall('/bff/mfa/challenge');
+    expect(req.request.body).toEqual({ factor: 'totp', credential: '123456' });
+    req.flush({ mfaSatisfied: true });
+    const r = await p;
     expect(r.data?.mfaSatisfied).toBeTrue();
   });
 
   it('degrades a network failure to a non-dark error result (never throws)', async () => {
-    fetchSpy.and.rejectWith(new Error('network'));
-    const r = await service.factors();
+    const p = service.factors();
+    expectCall('/bff/mfa/factors').error(new ProgressEvent('network'));
+    const r = await p;
     expect(r.ok).toBeFalse();
     expect(r.dark).toBeFalse();
     expect(r.status).toBe(0);
@@ -152,15 +165,57 @@ describe('MfaService', () => {
   });
 
   it('omits the Authorization header when there is no session (cookie-only path still works)', async () => {
-    // Configure the spy BEFORE clear(): since #35, clear() itself calls
-    // fetch(/bff/sessionOut).catch(...) — an unconfigured spy returns
-    // undefined and the .catch chain throws before the assertion under test.
-    fetchSpy.and.resolveTo(jsonResponse({ factors: [] }));
+    // clear() itself fires POST /bff/sessionOut (since #35); drain it first so the
+    // assertion below reads the /bff/mfa/factors request under test.
     session.clear();
-    await service.factors();
-    const names = Object.keys(lastHeaders()).map((k) => k.toLowerCase());
-    expect(names).not.toContain('authorization');
+    httpMock.expectOne((r) => r.url.includes('/bff/sessionOut')).flush({});
+
+    const p = service.factors();
+    const req = expectCall('/bff/mfa/factors');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
     // Cookie is still attached for the dual-read.
-    expect(lastInit().credentials).toBe('include');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ factors: [] });
+    await p;
+  });
+});
+
+// ── cookie mode: the double-submit CSRF header on MUTATING calls only ────────
+describe('MfaService (cookie mode)', () => {
+  let service: MfaService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    localStorage.clear();
+    (globalThis as any).__HUG_SESSION_COOKIE_MODE__ = true;
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [MfaService, SessionService, provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(MfaService);
+    httpMock = TestBed.inject(HttpTestingController);
+    spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
+  });
+
+  afterEach(() => {
+    delete (globalThis as any).__HUG_SESSION_COOKIE_MODE__;
+    localStorage.clear();
+  });
+
+  it('echoes X-CSRF-TOKEN on a mutating call (these are NOT cookie-mint endpoints)', async () => {
+    const p = service.challenge('totp', '123456');
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/mfa/challenge'));
+    expect(req.request.headers.get('X-CSRF-TOKEN')).toBe('tok-123');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ mfaSatisfied: true });
+    await p;
+  });
+
+  it('does NOT send X-CSRF-TOKEN on the GET (non-mutating, require-matcher exempt)', async () => {
+    const p = service.factors();
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/mfa/factors'));
+    expect(req.request.headers.has('X-CSRF-TOKEN')).toBeFalse();
+    req.flush({ factors: [] });
+    await p;
   });
 });

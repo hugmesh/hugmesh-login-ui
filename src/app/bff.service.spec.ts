@@ -1,9 +1,14 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
 import { BffService } from './bff.service';
 import { SessionService } from './session.service';
 import { LocalAgentService, LocalHandoff } from './local-agent.service';
 
-/** Minimal fetch Response stub. */
+/** Minimal fetch Response stub — still needed for the two COOKIE-MINT sign-in
+ *  calls ({@code /bff/login}, {@code /bff/login/local}), the only ones the
+ *  ng-openapi-gen migration left on plain `fetch` (see BffService.login for why).
+ *  Every CREDENTIALED call now runs through {@link HttpTestingController}. */
 function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
   return {
     ok: init?.ok ?? true,
@@ -13,10 +18,13 @@ function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): 
   } as unknown as Response;
 }
 
+const HTTP = [provideHttpClient(), provideHttpClientTesting()];
+
 describe('BffService', () => {
   let service: BffService;
   let session: SessionService;
   let localAgent: LocalAgentService;
+  let httpMock: HttpTestingController;
   let fetchSpy: jasmine.Spy;
 
   const HANDOFF: LocalHandoff = {
@@ -29,19 +37,17 @@ describe('BffService', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [BffService, SessionService],
+      providers: [BffService, SessionService, ...HTTP],
     });
     service = TestBed.inject(BffService);
     session = TestBed.inject(SessionService);
     localAgent = TestBed.inject(LocalAgentService);
+    httpMock = TestBed.inject(HttpTestingController);
     fetchSpy = spyOn(globalThis, 'fetch');
   });
 
   afterEach(() => localStorage.clear());
 
-  function lastUrl(): string {
-    return String(fetchSpy.calls.mostRecent().args[0]);
-  }
   function lastInit(): RequestInit {
     return (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
   }
@@ -49,9 +55,34 @@ describe('BffService', () => {
     return fetchSpy.calls.all().find((c) => String(c.args[0]).includes(substr));
   }
 
+  /** Wait for the next generated-client request matching `path`. The sign-in
+   *  fetch resolves through a few microtask turns before the follow-on
+   *  hydrate/provision calls are issued, so poll rather than assert immediately. */
+  async function nextRequest(path: string): Promise<TestRequest> {
+    for (let i = 0; i < 50; i++) {
+      const [req] = httpMock.match((r) => r.url.includes(path));
+      if (req) return req;
+      await Promise.resolve();
+    }
+    throw new Error(`no request to ${path}`);
+  }
+
+  /** Answer the GET /bff/session that login()/loginLocal() hydrate from. */
+  async function flushHydrate(registrationComplete: boolean): Promise<void> {
+    (await nextRequest('/bff/session')).flush({ roles: ['user'], registrationComplete });
+  }
+
+  /** Answer both best-effort provisioning POSTs (they run in sequence). */
+  async function flushProvisioning(): Promise<void> {
+    (await nextRequest('/bff/provision/matrix')).flush({ access_token: 'mx-tok', user_id: '@a:hs' });
+    (await nextRequest('/bff/provision/mastodon')).flush({ access_token: 'md-tok' });
+  }
+
   it('login POSTs {username,password} to /bff/login and stores a session (no token in the body)', async () => {
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: false, status: 'active', mfaRequired: false }));
-    const r = await service.login('alice', 's3cret');
+    const p = service.login('alice', 's3cret');
+    await flushHydrate(false);
+    const r = await p;
     expect(r.ok).toBeTrue();
     expect(r.registrationComplete).toBeFalse();
     const call = callTo('/bff/login')!;
@@ -70,28 +101,31 @@ describe('BffService', () => {
 
   it('does NOT provision service tokens on login when registration is incomplete', async () => {
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: false, status: 'active', mfaRequired: false }));
-    const r = await service.login('alice', 's3cret');
+    const p = service.login('alice', 's3cret');
+    await flushHydrate(false);
+    const r = await p;
     expect(r.ok).toBeTrue();
-    expect(callTo('/bff/provision/matrix')).toBeUndefined();
+    httpMock.expectNone((req) => req.url.includes('/bff/provision/matrix'));
   });
 
   it('TRIGGERS server-side provisioning on login when already fully registered, but stores NO token in the session', async () => {
-    fetchSpy.and.callFake((url: string) => {
-      if (String(url).includes('/bff/login')) return Promise.resolve(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
-      // The provision endpoints still return an access_token; the browser MUST ignore it.
-      if (String(url).includes('/provision/matrix')) return Promise.resolve(jsonResponse({ access_token: 'mx-tok', user_id: '@a:hs' }));
-      if (String(url).includes('/provision/mastodon')) return Promise.resolve(jsonResponse({ access_token: 'md-tok' }));
-      return Promise.resolve(jsonResponse({}));
-    });
-    await service.login('alice', 's3cret');
-    // Both provision POSTs fire with credentials (the bff_ cookie), no Bearer.
-    const mx = callTo('/bff/provision/matrix')!;
-    const md = callTo('/bff/provision/mastodon')!;
-    expect(mx.args[1]!.method).toBe('POST');
-    expect(mx.args[1]!.credentials).toBe('include');
-    expect((mx.args[1]!.headers as Record<string, string>)['authorization']).toBeUndefined();
-    expect(md.args[1]!.method).toBe('POST');
-    expect(md.args[1]!.credentials).toBe('include');
+    fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
+    const p = service.login('alice', 's3cret');
+    // The server confirms the account IS fully registered, which is what unlocks
+    // provisioning (hydrate() is authoritative over login()'s roles guess).
+    await flushHydrate(true);
+    // The two POSTs run in sequence, so matrix must settle before mastodon exists.
+    const mx = await nextRequest('/bff/provision/matrix');
+    expect(mx.request.method).toBe('POST');
+    expect(mx.request.withCredentials).toBeTrue();
+    expect(mx.request.headers.has('Authorization')).toBeFalse();
+    // The provision endpoints still return an access_token; the browser MUST ignore it.
+    mx.flush({ access_token: 'mx-tok', user_id: '@a:hs' });
+    const md = await nextRequest('/bff/provision/mastodon');
+    expect(md.request.method).toBe('POST');
+    expect(md.request.withCredentials).toBeTrue();
+    md.flush({ access_token: 'md-tok' });
+    await p;
     // The homeserver tokens are NEVER held in the browser/session.
     expect((session.session() as any)?.matrix).toBeUndefined();
     expect((session.session() as any)?.mastodon).toBeUndefined();
@@ -109,7 +143,10 @@ describe('BffService', () => {
 
   it('includes mfaPasscode + mfaType on a passcode re-POST', async () => {
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
-    await service.login('alice', 's3cret', { passcode: '123456', mfaType: 'totp' });
+    const p = service.login('alice', 's3cret', { passcode: '123456', mfaType: 'totp' });
+    await flushHydrate(true);
+    await flushProvisioning();
+    await p;
     const call = callTo('/bff/login')!;
     expect(JSON.parse(String(call.args[1]!.body))).toEqual({
       username: 'alice', password: 's3cret', mfaPasscode: '123456', mfaType: 'totp',
@@ -164,7 +201,10 @@ describe('BffService', () => {
   it('loginLocal fetches a single-use handoff then POSTs {roleId,username,secret} to /bff/login/local with credentials', async () => {
     spyOn(localAgent, 'handoff').and.resolveTo(HANDOFF);
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
-    const r = await service.loginLocal('brandowner');
+    const p = service.loginLocal('brandowner');
+    await flushHydrate(true);
+    await flushProvisioning();
+    const r = await p;
     expect(r.ok).toBeTrue();
     expect(localAgent.handoff).toHaveBeenCalledWith('brandowner');
     const call = callTo('/bff/login/local')!;
@@ -228,24 +268,22 @@ describe('BffService', () => {
 
   it('loginLocal TRIGGERS server-side provisioning when already fully registered, storing NO token', async () => {
     spyOn(localAgent, 'handoff').and.resolveTo(HANDOFF);
-    fetchSpy.and.callFake((url: string) => {
-      if (String(url).includes('/bff/login/local')) return Promise.resolve(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
-      if (String(url).includes('/provision/matrix')) return Promise.resolve(jsonResponse({ access_token: 'mx-tok' }));
-      if (String(url).includes('/provision/mastodon')) return Promise.resolve(jsonResponse({ access_token: 'md-tok' }));
-      return Promise.resolve(jsonResponse({}));
-    });
-    await service.loginLocal('brandowner');
-    expect(callTo('/bff/provision/matrix')).toBeDefined();
-    expect(callTo('/bff/provision/mastodon')).toBeDefined();
+    fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: true, status: 'active', mfaRequired: false }));
+    const p = service.loginLocal('brandowner');
+    await flushHydrate(true);
+    await flushProvisioning();
+    await p;
     expect((session.session() as any)?.matrix).toBeUndefined();
   });
 
   it('loginLocal does NOT provision service tokens when registration is incomplete', async () => {
     spyOn(localAgent, 'handoff').and.resolveTo(HANDOFF);
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: false, status: 'active', mfaRequired: false }));
-    const r = await service.loginLocal('brandowner');
+    const p = service.loginLocal('brandowner');
+    await flushHydrate(false);
+    const r = await p;
     expect(r.ok).toBeTrue();
-    expect(callTo('/bff/provision/matrix')).toBeUndefined();
+    httpMock.expectNone((req) => req.url.includes('/bff/provision/matrix'));
   });
 
   it('completeRegistration TRIGGERS server-side provisioning BEFORE flipping registrationComplete, storing NO token', async () => {
@@ -254,21 +292,19 @@ describe('BffService', () => {
       registrationComplete: false,
     });
     let flippedWhileProvisioning = false;
-    fetchSpy.and.callFake((url: string) => {
-      if (String(url).includes('/provision/')) {
-        // The registration gate must NOT be open until provisioning has run.
-        flippedWhileProvisioning = flippedWhileProvisioning || session.session()!.registrationComplete;
-        const tok = String(url).includes('matrix') ? { access_token: 'mx', user_id: '@a:hs' } : { access_token: 'md' };
-        return Promise.resolve(jsonResponse(tok));
-      }
-      return Promise.resolve(jsonResponse({}));
-    });
-    await service.completeRegistration();
+    const p = service.completeRegistration();
+    (await nextRequest('/bff/register/complete')).flush({});
+    // The registration gate must NOT be open until provisioning has run.
+    const mx = await nextRequest('/bff/provision/matrix');
+    flippedWhileProvisioning = flippedWhileProvisioning || session.session()!.registrationComplete;
+    mx.flush({ access_token: 'mx', user_id: '@a:hs' });
+    const md = await nextRequest('/bff/provision/mastodon');
+    flippedWhileProvisioning = flippedWhileProvisioning || session.session()!.registrationComplete;
+    md.flush({ access_token: 'md' });
+    await p;
     expect(flippedWhileProvisioning).toBeFalse();
     expect(session.session()?.registrationComplete).toBeTrue();
-    // Both services were provisioned server-side; NO homeserver token reaches the session.
-    expect(callTo('/bff/provision/matrix')).toBeDefined();
-    expect(callTo('/bff/provision/mastodon')).toBeDefined();
+    // NO homeserver token reaches the session.
     expect((session.session() as any)?.matrix).toBeUndefined();
     expect((session.session() as any)?.mastodon).toBeUndefined();
   });
@@ -278,11 +314,14 @@ describe('BffService', () => {
       id: 'u1', label: 'a', provider: 'google', roles: ['user'],
       registrationComplete: false,
     });
-    fetchSpy.and.resolveTo(jsonResponse({ access_token: 'x' }));
-    await service.completeRegistration();
-    const complete = callTo('/bff/register/complete')!;
-    expect(complete.args[1]!.credentials).toBe('include');
-    expect((complete.args[1]!.headers as Record<string, string>)['authorization']).toBeUndefined();
+    const p = service.completeRegistration();
+    const complete = await nextRequest('/bff/register/complete');
+    expect(complete.request.method).toBe('POST');
+    expect(complete.request.withCredentials).toBeTrue();
+    expect(complete.request.headers.has('Authorization')).toBeFalse();
+    complete.flush({});
+    await flushProvisioning();
+    await p;
   });
 
   it('completeRegistration forwards displayName + screenReaderName in the complete body', async () => {
@@ -290,66 +329,83 @@ describe('BffService', () => {
       id: 'u1', label: 'a', provider: 'google', roles: ['user'],
       registrationComplete: false,
     });
-    fetchSpy.and.resolveTo(jsonResponse({ access_token: 'x' }));
-    await service.completeRegistration({ displayName: '山田太郎', screenReaderName: 'Yamada Taro' });
-    const complete = callTo('/bff/register/complete')!;
-    expect(JSON.parse(String(complete.args[1]!.body))).toEqual({
+    const p = service.completeRegistration({ displayName: '山田太郎', screenReaderName: 'Yamada Taro' });
+    const complete = await nextRequest('/bff/register/complete');
+    expect(complete.request.body).toEqual({
       displayName: '山田太郎',
       screenReaderName: 'Yamada Taro',
     });
+    complete.flush({});
+    await flushProvisioning();
+    await p;
+  });
+
+  it('completeRegistration still provisions and flips the gate when the complete call is refused', async () => {
+    // `fetch` resolved for a non-OK response and the result was ignored; the
+    // generated client errors instead, so the swallow must keep the flow intact.
+    session.set({
+      id: 'u1', label: 'a', provider: 'google', roles: ['user'],
+      registrationComplete: false,
+    });
+    const p = service.completeRegistration();
+    (await nextRequest('/bff/register/complete'))
+      .flush({ error: 'nope' }, { status: 500, statusText: 'Server Error' });
+    await flushProvisioning();
+    await p;
+    expect(session.session()?.registrationComplete).toBeTrue();
   });
 
   // ── submitAppeal (POST /bff/me/appeal) ──────────────────────────────────────
 
   it('submitAppeal POSTs the reason + contactEmail with credentials, and returns the recorded appeal', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({ id: 'ap1', status: 'PENDING' }));
-    const result = await service.submitAppeal('let me back in', 'alt@example.com');
-
-    expect(lastUrl()).toContain('/bff/me/appeal');
-    expect(lastInit().method).toBe('POST');
-    expect(lastInit().credentials).toBe('include');
-    expect(JSON.parse(String(lastInit().body))).toEqual({ reason: 'let me back in', contactEmail: 'alt@example.com' });
-    expect(result).toEqual({ ok: true, status: 'PENDING', id: 'ap1' });
+    const p = service.submitAppeal('let me back in', 'alt@example.com');
+    const req = await nextRequest('/bff/me/appeal');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBeTrue();
+    expect(req.request.body).toEqual({ reason: 'let me back in', contactEmail: 'alt@example.com' });
+    req.flush({ id: 'ap1', status: 'PENDING' }, { status: 201, statusText: 'Created' });
+    expect(await p).toEqual({ ok: true, status: 'PENDING', id: 'ap1' });
   });
 
   it('submitAppeal maps a 401 (no session) to error:"unauthenticated" — never a fake success', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 401 }));
-    const result = await service.submitAppeal('reason', null);
-    expect(result).toEqual({ ok: false, error: 'unauthenticated' });
+    const p = service.submitAppeal('reason', null);
+    (await nextRequest('/bff/me/appeal')).flush({}, { status: 401, statusText: 'Unauthorized' });
+    expect(await p).toEqual({ ok: false, error: 'unauthenticated' });
   });
 
   it('submitAppeal maps a 422 to error:"invalid"', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 422 }));
-    const result = await service.submitAppeal('', null);
-    expect(result).toEqual({ ok: false, error: 'invalid' });
+    const p = service.submitAppeal('', null);
+    (await nextRequest('/bff/me/appeal')).flush({}, { status: 422, statusText: 'Unprocessable Entity' });
+    expect(await p).toEqual({ ok: false, error: 'invalid' });
   });
 
   it('submitAppeal maps a 500 to error:"server"', async () => {
-    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 500 }));
-    const result = await service.submitAppeal('reason', null);
-    expect(result).toEqual({ ok: false, error: 'server' });
+    const p = service.submitAppeal('reason', null);
+    (await nextRequest('/bff/me/appeal')).flush({}, { status: 500, statusText: 'Server Error' });
+    expect(await p).toEqual({ ok: false, error: 'server' });
   });
 
-  it('submitAppeal maps a thrown fetch (network down) to error:"network" — never throws', async () => {
-    fetchSpy.and.rejectWith(new Error('offline'));
-    const result = await service.submitAppeal('reason', null);
-    expect(result).toEqual({ ok: false, error: 'network' });
+  it('submitAppeal maps a transport failure (network down) to error:"network" — never throws', async () => {
+    const p = service.submitAppeal('reason', null);
+    (await nextRequest('/bff/me/appeal')).error(new ProgressEvent('network'));
+    expect(await p).toEqual({ ok: false, error: 'network' });
   });
 });
 
 // ── D6 cookie mode: Bearer dropped, credentials + CSRF on mutations ──────────
 describe('BffService (cookie mode)', () => {
   let service: BffService;
-  let session: SessionService;
+  let httpMock: HttpTestingController;
   let fetchSpy: jasmine.Spy;
 
   beforeEach(() => {
     localStorage.clear();
     (globalThis as any).__HUG_SESSION_COOKIE_MODE__ = true;
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [BffService, SessionService] });
+    TestBed.configureTestingModule({ providers: [BffService, SessionService, ...HTTP] });
     service = TestBed.inject(BffService);
-    session = TestBed.inject(SessionService);
+    TestBed.inject(SessionService);
+    httpMock = TestBed.inject(HttpTestingController);
     fetchSpy = spyOn(globalThis, 'fetch');
   });
 
@@ -358,43 +414,64 @@ describe('BffService (cookie mode)', () => {
     localStorage.clear();
   });
 
-  function lastInit(): RequestInit {
-    return (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
-  }
-  function headersOf(init: RequestInit): Record<string, string> {
-    return (init.headers ?? {}) as Record<string, string>;
+  async function nextRequest(path: string): Promise<TestRequest> {
+    for (let i = 0; i < 50; i++) {
+      const [req] = httpMock.match((r) => r.url.includes(path));
+      if (req) return req;
+      await Promise.resolve();
+    }
+    throw new Error(`no request to ${path}`);
   }
 
   it('login sends credentials: include and NO Authorization header', async () => {
-    // In cookie mode login also hydrates from GET /bff/session; both round-trips
-    // must ride the cookie with no bearer. Assert on the /bff/login POST itself.
+    // /bff/login is the cookie-MINT call and stays on `fetch`; in cookie mode it
+    // also hydrates from GET /bff/session, which now rides the generated client.
     fetchSpy.and.resolveTo(jsonResponse({ registrationComplete: false, status: 'active', mfaRequired: false }));
-    await service.login('alice', 's3cret');
+    const p = service.login('alice', 's3cret');
+    (await nextRequest('/bff/session')).flush({ roles: ['user'], registrationComplete: false });
+    await p;
     const call = fetchSpy.calls.all().find((c) => String(c.args[0]).includes('/bff/login'))!;
     const init = (call.args[1] ?? {}) as RequestInit;
     expect(init.credentials).toBe('include');
-    expect(headersOf(init)['authorization']).toBeUndefined();
+    expect((init.headers as Record<string, string>)['authorization']).toBeUndefined();
   });
 
   it('a cookie-mint-adjacent call (completeRegistration) sends credentials but no Authorization and no CSRF header', async () => {
     spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
-    fetchSpy.and.resolveTo(jsonResponse({}));
-    await service.completeRegistration();
-    const init = lastInit();
-    expect(init.credentials).toBe('include');
-    const h = headersOf(init);
-    expect(h['authorization']).toBeUndefined();
-    expect(h['X-CSRF-TOKEN']).toBeUndefined(); // /bff/register/** is CSRF-exempt (authHeaders(mutating=false))
+    const p = service.completeRegistration();
+    const complete = await nextRequest('/bff/register/complete');
+    expect(complete.request.withCredentials).toBeTrue();
+    expect(complete.request.headers.has('Authorization')).toBeFalse();
+    // /bff/register/** is CSRF-exempt (authHeaders(mutating=false))
+    expect(complete.request.headers.has('X-CSRF-TOKEN')).toBeFalse();
+    complete.flush({});
+    // No session, so provisioning is skipped entirely.
+    await p;
   });
 
   it('a mutating call (submitAppeal) echoes the X-CSRF-TOKEN from the XSRF-TOKEN cookie, no Bearer', async () => {
     spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
-    fetchSpy.and.resolveTo(jsonResponse({ id: 'ap1', status: 'PENDING' }));
-    await service.submitAppeal('reason', null);
-    const init = lastInit();
-    expect(init.credentials).toBe('include');
-    const h = headersOf(init);
-    expect(h['authorization']).toBeUndefined();
-    expect(h['X-CSRF-TOKEN']).toBe('tok-123');
+    const p = service.submitAppeal('reason', null);
+    const req = await nextRequest('/bff/me/appeal');
+    expect(req.request.withCredentials).toBeTrue();
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    expect(req.request.headers.get('X-CSRF-TOKEN')).toBe('tok-123');
+    req.flush({ id: 'ap1', status: 'PENDING' }, { status: 201, statusText: 'Created' });
+    await p;
+  });
+
+  it('the provisioning POSTs echo the X-CSRF-TOKEN (mutating, non-mint)', async () => {
+    spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
+    const session = TestBed.inject(SessionService);
+    session.set({ id: 'u1', label: 'a', provider: 'password', roles: ['user'], registrationComplete: false });
+    const p = service.completeRegistration();
+    (await nextRequest('/bff/register/complete')).flush({});
+    const mx = await nextRequest('/bff/provision/matrix');
+    expect(mx.request.headers.get('X-CSRF-TOKEN')).toBe('tok-123');
+    mx.flush({});
+    const md = await nextRequest('/bff/provision/mastodon');
+    expect(md.request.headers.get('X-CSRF-TOKEN')).toBe('tok-123');
+    md.flush({});
+    await p;
   });
 });

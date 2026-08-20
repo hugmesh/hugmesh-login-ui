@@ -14,8 +14,13 @@ import { routes } from './app/app.routes';
 
 bootstrapApplication(AppComponent, {
   // provideHttpClient() backs the generated ng-openapi-gen clients (src/app/api),
-  // which the migrated PublicAnnouncementsService delegates to. The opaque
-  // bff_session login/register/provision flow in BffService still uses fetch
-  // directly and is unaffected.
+  // which every migrated service delegates to — the anonymous public reads AND,
+  // since #2, the credentialed session/register/provision/appeal/MFA calls (those
+  // opt in per call via withBffCredentials, so the cookie rides along without an
+  // interceptor). In PRODUCTION this file is not loaded and the generated clients
+  // — `providedIn: 'root'` — take the HOST's HttpClient; the login route already
+  // depended on that before #2 (LoginBannerComponent -> PublicAnnouncementsService),
+  // and hugmesh-host-shell provides it in its own bootstrap. The two cookie-mint
+  // sign-in calls in BffService still use fetch directly and are unaffected.
   providers: [provideRouter(routes), provideHttpClient()],
 }).catch((err) => console.error(err));

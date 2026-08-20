@@ -1,6 +1,10 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { SessionService, SnapSession } from './session.service';
 import { LocalAgentService } from './local-agent.service';
+import { AccountAppealUserControllerService } from './api/services/account-appeal-user-controller.service';
+import { AuthControllerService } from './api/services/auth-controller.service';
+import { bffFailure, withBffCredentials } from './http/bff-credentials';
 
 /** The result of a native username/password sign-in ({@link BffService.login}).
  *
@@ -80,11 +84,29 @@ const CFG = {
  * Registration is a TWO-STAGE flow: {@link completeRegistration} captures the
  * display name and only THEN triggers the Matrix/Mastodon service-token
  * provisioning.
+ *
+ * <p><b>ng-openapi-gen migration:</b> every CREDENTIALED call here delegates to
+ * the generated, typed clients under {@code src/app/api} and is marked
+ * credentialed with {@link withBffCredentials}, so the httpOnly `bff_` cookie
+ * rides along exactly as the old {@code credentials: 'include'} did. The two
+ * COOKIE-MINT sign-in calls ({@link login} / {@link loginLocal}) deliberately stay
+ * on plain {@code fetch} — see {@link login} for why the committed contract
+ * cannot describe them.
  */
 @Injectable({ providedIn: 'root' })
 export class BffService {
   private readonly session = inject(SessionService);
   private readonly localAgent = inject(LocalAgentService);
+  private readonly auth = inject(AuthControllerService);
+  private readonly appeals = inject(AccountAppealUserControllerService);
+
+  constructor() {
+    // Pin the generated clients to the host-provided BFF origin so the wire URLs
+    // stay byte-identical to the legacy `${__HUG_BFF_URL__}/bff/...` paths (same
+    // pattern as PublicAnnouncementsService / AppealContactService).
+    this.auth.rootUrl = CFG.bff;
+    this.appeals.rootUrl = CFG.bff;
+  }
 
   /**
    * Build the auth headers for an admin-bff call. The browser NEVER holds a
@@ -100,8 +122,11 @@ export class BffService {
     return {};
   }
 
-  /** Init shared by every admin-bff call: always send credentials so the
-   *  httpOnly `bff_` session cookie rides along (the browser holds no bearer). */
+  /** Init for the two COOKIE-MINT sign-in fetches ({@link login} /
+   *  {@link loginLocal}), the only calls left on plain `fetch`: send credentials
+   *  so the browser accepts the `Set-Cookie` that mints the httpOnly `bff_`
+   *  session (the browser holds no bearer). Every CREDENTIALED call goes through
+   *  the generated client with {@link withBffCredentials} instead. */
   private creds(): RequestInit {
     return { credentials: 'include' };
   }
@@ -161,6 +186,19 @@ export class BffService {
    *     the caller renders the MFA challenge and re-POSTs with a passcode.
    *   • 401 `{ error:'invalid_credentials', message }` → bad credentials.
    *   • 503 → the SSO surface is dark (unavailable).
+   *
+   * <p><b>Why this call is still a plain `fetch`</b> (the one endpoint the
+   * ng-openapi-gen migration cannot take): the committed {@code openapi.json} is
+   * the ADMIN-bff contract, and admin-bff publishes its OWN, different
+   * {@code POST /bff/login} — the legacy google/discord one, whose
+   * {@code LoginRequest} is {@code {provider,email,username}} with NO
+   * {@code password}. The native username/password login THIS form drives is
+   * user-bff's ({@code SsoAuthController}, {@code {username,password,mfaPasscode,
+   * mfaType}}), and this repo does not generate a client from the user-bff spec.
+   * Generating against the admin-bff operation would type-check away the password
+   * and enshrine the wrong contract, so the raw call stays until a user-bff client
+   * exists. Its sibling {@link loginLocal} stays alongside it for the same reason
+   * the two were written to mirror each other.
    *
    * @param mfa when re-submitting after an `mfaRequired` challenge, the passcode
    *   (and the offered factor type) to include as `mfaPasscode` / `mfaType`.
@@ -302,13 +340,16 @@ export class BffService {
    *  accepts + forwards these to the user-bff profile (`screen_reader_name`
    *  column exists — user-bff changeset 008). */
   async completeRegistration(identity?: RegistrationIdentity): Promise<void> {
-    await fetch(`${CFG.bff}/bff/register/complete`, {
-      ...this.creds(),
-      method: 'POST',
-      // /bff/register/** is a cookie-mint endpoint (CSRF-exempt); auth is the bff_ cookie.
-      headers: { 'content-type': 'application/json', ...this.authHeaders() },
-      body: JSON.stringify(this.identityBody(identity)),
-    });
+    // /bff/register/** is a cookie-mint endpoint (CSRF-exempt); auth is the bff_ cookie.
+    // The response was already ignored here, and `fetch` resolved for a non-OK one;
+    // the generated client ERRORS on it instead, so swallow it to keep provisioning
+    // and the registration flip running exactly as before.
+    await firstValueFrom(
+      this.auth.authComplete(
+        { body: this.identityBody(identity) },
+        withBffCredentials(this.authHeaders()),
+      ),
+    ).catch(() => undefined);
     // Provision the brokered Matrix/Mastodon tokens server-side FIRST (the
     // broker can be slow against the real tuwunel), THEN flip
     // registrationComplete — so the Matrix/Mastodon modules only unlock once the
@@ -328,12 +369,15 @@ export class BffService {
     // Auth rides in the httpOnly `bff_` cookie (no JS-readable token), so only
     // guard on a logged-in session.
     if (!this.session.session()) return;
+    // mutating, non-mint → CSRF header in cookie mode. Best-effort: the outcome was
+    // never read, so a failure is swallowed rather than aborting the caller (the
+    // generated client errors on a non-OK where the former `fetch` resolved).
     const provision = (svc: 'matrix' | 'mastodon') =>
-      fetch(`${CFG.bff}/bff/provision/${svc}`, {
-        ...this.creds(),
-        method: 'POST',
-        headers: this.authHeaders(true), // mutating, non-mint → CSRF header in cookie mode
-      });
+      firstValueFrom(
+        svc === 'matrix'
+          ? this.auth.authProvisionMatrix({}, withBffCredentials(this.authHeaders(true)))
+          : this.auth.authProvisionMastodon({}, withBffCredentials(this.authHeaders(true))),
+      ).catch(() => undefined);
     // Fire both provisioning POSTs; the returned access_token is intentionally
     // discarded — it lives server-side for the hsproxy, never in the browser.
     await provision('matrix');
@@ -352,23 +396,23 @@ export class BffService {
    * render this as a submitted appeal. Never throws.
    */
   async submitAppeal(reason: string, contactEmail: string | null): Promise<AppealSubmitResult> {
-    let r: Response;
     try {
-      r = await fetch(`${CFG.bff}/bff/me/appeal`, {
-        ...this.creds(),
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...this.authHeaders(true) },
-        body: JSON.stringify({ reason, contactEmail: contactEmail || null }),
-      });
-    } catch {
-      return { ok: false, error: 'network' };
-    }
-    if (r.ok) {
-      const body = await r.json().catch(() => ({}));
+      const body = await firstValueFrom(
+        this.appeals.accountAppealSubmit(
+          { body: { reason, contactEmail: contactEmail || null } },
+          withBffCredentials(this.authHeaders(true)),
+        ),
+      );
       return { ok: true, status: body.status, id: body.id };
+    } catch (err) {
+      // `fetch` resolved for every status and this mapping read `r.status`; the
+      // generated client errors instead, and a transport failure (the old
+      // try/catch around `fetch`) arrives as status 0.
+      const { status } = bffFailure(err);
+      if (status === 401) return { ok: false, error: 'unauthenticated' };
+      if (status === 400 || status === 422) return { ok: false, error: 'invalid' };
+      if (status === 0) return { ok: false, error: 'network' };
+      return { ok: false, error: 'server' };
     }
-    if (r.status === 401) return { ok: false, error: 'unauthenticated' };
-    if (r.status === 400 || r.status === 422) return { ok: false, error: 'invalid' };
-    return { ok: false, error: 'server' };
   }
 }

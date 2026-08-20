@@ -27,6 +27,19 @@ COPY . .
 #   docker run --rm <image> ls -R /usr/share/nginx/html/i18n
 #     web_locales=()        -> no such directory
 #     web_locales=("en-XA") -> i18n/en-XA.json
+#
+# RENAME PHASE 1 — DUAL READ. The fleet is renaming SNAP_* -> HUG_*, and this
+# arg crosses a repo boundary (hugmesh-generator Makefile/compose passes it,
+# this image consumes it), so the halves cannot flip in one commit. BuildKit
+# only WARNS on a build arg nothing declares, and an unset locale list means
+# "ship zero catalogs", so a one-sided flip produces a GREEN build of an image
+# that silently serves English to everyone. Both spellings are therefore
+# declared and both are honoured; tools/i18n/emit-shipped-locales.mjs
+# (webLocalesEnv) picks HUG_WEB_LOCALES when it is NON-EMPTY, else falls back —
+# `ENV HUG_WEB_LOCALES=` below always DEFINES the new name, so emptiness, not
+# definedness, is what has to select the fallback.
+ARG HUG_WEB_LOCALES=""
+ENV HUG_WEB_LOCALES=${HUG_WEB_LOCALES}
 ARG SNAP_WEB_LOCALES=""
 ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 
@@ -42,7 +55,7 @@ ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 #                   stale catalog, or a second '@angular/localize/init' importer.
 #                   Each of those renders a silently half-translated page, so none
 #                   may be left to review or to runtime.
-#   i18n:prepare  — bakes SNAP_WEB_LOCALES into src/app/i18n/shipped-locales.ts,
+#   i18n:prepare  — bakes HUG_WEB_LOCALES/SNAP_WEB_LOCALES into src/app/i18n/shipped-locales.ts,
 #                   so the bundle knows which catalogs exist and never requests
 #                   one that was not shipped. Fails loudly on a requested locale
 #                   with no catalog, rather than shipping an image that silently

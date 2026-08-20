@@ -3,7 +3,7 @@
  * dist, where the existing Dockerfile `COPY --from=build /app/dist/login/browser
  * /usr/share/nginx/html` carries them into the image.
  *
- *   SNAP_WEB_LOCALES=en-XA node tools/i18n/build-catalogs.mjs
+ *   HUG_WEB_LOCALES=en-XA node tools/i18n/build-catalogs.mjs
  *   (or: npm run i18n:catalogs)
  *
  * `angular.json`'s esbuild target has `assets: []` — nothing is auto-copied — so
@@ -25,14 +25,17 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseXlf, toJson } from './xlf.mjs';
-import { resolveShipped } from './emit-shipped-locales.mjs';
+import { resolveShipped, webLocalesEnv } from './emit-shipped-locales.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LOCALE_DIR = join(ROOT, 'src', 'locale');
 const DIST = join(ROOT, 'dist', 'login', 'browser');
 const OUT_DIR = join(DIST, 'i18n');
 
-const shipped = resolveShipped(process.env.SNAP_WEB_LOCALES);
+// RENAME PHASE 1 — DUAL READ: HUG_WEB_LOCALES wins, SNAP_WEB_LOCALES still
+// honoured. Shared with emit-shipped-locales.mjs so the two build steps can
+// never disagree about which locales this image ships.
+const shipped = resolveShipped(webLocalesEnv());
 
 if (!existsSync(DIST)) {
   throw new Error(`${DIST} does not exist — run \`npm run build:login\` first.`);

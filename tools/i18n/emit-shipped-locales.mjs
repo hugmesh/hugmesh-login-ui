@@ -1,10 +1,11 @@
 /**
  * PRE-BUILD step: bake the selected locale set into the bundle.
  *
- *   SNAP_WEB_LOCALES=de,en-XA node tools/i18n/emit-shipped-locales.mjs
+ *   HUG_WEB_LOCALES=de,en-XA node tools/i18n/emit-shipped-locales.mjs
  *   (or: npm run i18n:prepare)
  *
- * Rewrites `src/app/i18n/shipped-locales.ts` from `SNAP_WEB_LOCALES`, which the
+ * Rewrites `src/app/i18n/shipped-locales.ts` from `HUG_WEB_LOCALES` (falling
+ * back to the older `SNAP_WEB_LOCALES` — see {@link webLocalesEnv}), which the
  * Dockerfile forwards from the Studio's `web_locales` field. Unset/empty =>
  * English-only, which is the checked-in default, so a plain `npm run build`
  * leaves the working tree clean.
@@ -41,7 +42,26 @@ export function availableLocales() {
     .sort();
 }
 
-/** Parse the `SNAP_WEB_LOCALES` build arg: comma/space separated, deduped. */
+/**
+ * RENAME PHASE 1 — DUAL READ. The fleet is renaming `SNAP_*` -> `HUG_*`, and
+ * this one crosses a process boundary: the value is a docker BUILD ARG set by
+ * hugmesh-generator (Makefile / compose.local.yaml / the Studio), consumed here.
+ * The two sides cannot flip in one commit, and a one-sided flip is SILENT — an
+ * unset var means "ship zero catalogs", so the image builds green and serves
+ * English to everyone who asked for German. So read BOTH, new name winning.
+ *
+ * Deliberately NOT `env.HUG_WEB_LOCALES ?? env.SNAP_WEB_LOCALES`: the Dockerfile
+ * materialises `ENV HUG_WEB_LOCALES=` for an unpassed build arg, so the new name
+ * is always DEFINED and `??` would shadow the old one with an empty string —
+ * exactly the silent English-only regression this dual read exists to prevent.
+ * Emptiness, not definedness, is what selects the fallback.
+ */
+export function webLocalesEnv(env = process.env) {
+  const hug = (env.HUG_WEB_LOCALES ?? '').trim();
+  return hug !== '' ? hug : (env.SNAP_WEB_LOCALES ?? '').trim();
+}
+
+/** Parse the `*_WEB_LOCALES` build arg: comma/space separated, deduped. */
 export function parseRequested(raw) {
   return [...new Set((raw ?? '').split(/[,\s]+/).map((s) => s.trim()).filter(Boolean))].sort();
 }
@@ -56,7 +76,7 @@ export function resolveShipped(raw) {
   const missing = wanted.filter((l) => !available.includes(l));
   if (missing.length > 0) {
     throw new Error(
-      `SNAP_WEB_LOCALES requested locale(s) with no catalog: ${missing.join(', ')}\n` +
+      `HUG_WEB_LOCALES/SNAP_WEB_LOCALES requested locale(s) with no catalog: ${missing.join(', ')}\n` +
         `  Catalogs present: ${available.length ? available.join(', ') : '(none)'}\n` +
         `  Add src/locale/messages.<locale>.xlf, or drop the locale from web_locales.\n` +
         `  Failing the build here is deliberate: shipping the image anyway would ` +
@@ -75,13 +95,14 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
 }
 
 function main() {
-const shipped = resolveShipped(process.env.SNAP_WEB_LOCALES);
+const shipped = resolveShipped(webLocalesEnv());
 
 const body = `/**
  * The translation catalogs this BUILD actually ships — GENERATED, do not edit.
  *
  * Rewritten by \`tools/i18n/emit-shipped-locales.mjs\` (npm run i18n:prepare) from
- * the \`SNAP_WEB_LOCALES\` build arg, which the Dockerfile forwards from the
+ * the \`HUG_WEB_LOCALES\` build arg (\`SNAP_WEB_LOCALES\` is still honoured while
+ * the fleet-wide rename is in flight), which the Dockerfile forwards from the
  * Studio's \`web_locales\` field. The checked-in value is the DEFAULT — an empty
  * list, i.e. English-only.
  *

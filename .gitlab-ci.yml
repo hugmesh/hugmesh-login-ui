@@ -7,7 +7,7 @@
 # Centralized OWASP pen-test stage (SCA + authenticated ZAP DAST) — one source of
 # truth, maintained in the generator repo. Pulls in the hidden .pentest-* jobs.
 include:
-  - project: 'HugMesh/hugmesh-generator'
+  - project: 'hugmesh/hugmesh-generator'
     ref: main
     file: '/tests/pentest/ci/pentest-stage.gitlab-ci.yml'
 

@@ -1,6 +1,11 @@
 @use 'tokens' as t;
+@use 'mixins' as m;
 
 .hug-appeal {
+  // The appeal-submit button shipped with no class — UA grey chrome. Same
+  // convention as the sign-in view.
+  @include m.hug-buttons;
+
   display: block;
   max-width: 28rem;
   margin: 2rem auto;

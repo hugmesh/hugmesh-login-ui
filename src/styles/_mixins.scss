@@ -44,3 +44,85 @@
   border-radius: t.$radius-page;
   display: block;
 }
+
+// ===========================================================================
+// BUTTONS
+// ===========================================================================
+// A <button> inherits almost nothing: leave background/colour/font unset and
+// Chrome paints its OWN chrome — ButtonFace grey (#efefef, or a 30%-alpha wash
+// when disabled), a 2px `outset` border, square corners and a private 13.33px
+// font that ignores the page's font-family. On the dark shell that is the
+// "random grey button"; on the animated LIGHT login backdrop it is very nearly
+// invisible. That is what shipped on the sign-in button.
+//
+// This convention already existed — as `.mfa-btn`, but nested INSIDE `.hug-mfa`
+// in mfa.component.scss, so no other component could reach it and each one
+// re-derived (or skipped) buttons on its own. Hoisting it here is the actual
+// fix: one definition, reachable from every component's stylesheet.
+//
+// var(--hug-*, <literal>) with a compiled fallback throughout: a component
+// stylesheet ships inside the JS bundle and therefore applies under the host
+// shell, but this remote's GLOBAL styles.scss (where the :root tokens live)
+// does NOT — the host federates `./routes`, not our stylesheet. A bare
+// var(--hug-bg-1) would resolve to the guaranteed-invalid value on any host
+// that has not defined the token, `background` would compute to `transparent`
+// and the grey-button bug would come straight back in a new disguise.
+
+@mixin hug-button {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--hug-border, #1e1e32);
+  border-radius: t.$radius-sm;
+  background: var(--hug-bg-1, #12121e);
+  color: var(--hug-text, #e8e8f0);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover:not([disabled]) {
+    border-color: var(--hug-accent, #7c4dff);
+  }
+
+  // A visible focus ring (never rely on the default outline being removed).
+  &:focus-visible {
+    outline: 2px solid var(--hug-accent-soft, #b388ff);
+    outline-offset: 2px;
+  }
+
+  // WCAG 1.4.1 — the disabled cue is dimming + the not-allowed cursor, never
+  // colour alone.
+  &[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.primary {
+    border-color: var(--hug-accent, #7c4dff);
+    background: var(--hug-accent, #7c4dff);
+    // --hug-accent-on, never a hardcoded hex: the hardcoded #0a0a12 measured
+    // 4.10:1 on the shipped accent — an AA FAIL — and on an injected accent it
+    // could land anywhere. The token is auto-picked pure black/white by
+    // luminance, which is >= 4.5:1 for every sRGB accent (white = 4.81:1 here).
+    color: var(--hug-accent-on, #ffffff);
+    font-weight: 700;
+  }
+
+  &.danger {
+    border-color: var(--hug-error, #ff6b6b);
+    color: var(--hug-error, #ff6b6b);
+  }
+}
+
+// Include this ONCE in a view's root block (`.hug-login`, `.hug-appeal`, …).
+// It gives `.hug-btn` — the class to write in markup — and, as a floor, EVERY
+// bare <button> inside that view. The element selector is what makes the fix
+// structural: forgetting the class can no longer expose UA chrome, which is how
+// the sign-in button regressed in the first place. Its specificity (0,1,1) sits
+// below any component's own button class (0,2,0), so `.role-card`/`.mfa-btn`
+// style rules keep winning where they overlap.
+@mixin hug-buttons {
+  button,
+  .hug-btn {
+    @include hug-button;
+  }
+}

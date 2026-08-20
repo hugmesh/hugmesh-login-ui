@@ -99,7 +99,12 @@
             </p>
           }
 
-          <button type="submit" data-testid="appeal-submit" [disabled]="submitting() || !reasonInput().trim()">
+          <button
+            type="submit"
+            class="hug-btn primary"
+            data-testid="appeal-submit"
+            [disabled]="submitting() || !reasonInput().trim()"
+          >
             {{ submitLabel() }}
           </button>
         </form>

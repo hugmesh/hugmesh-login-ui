@@ -1,6 +1,13 @@
 @use 'tokens' as t;
+@use 'mixins' as m;
 
 .hug-role-picker {
+  // `.role-card` set border/radius/padding but never background, colour or
+  // font, so the cards still painted the UA's ButtonFace grey on the dark
+  // shell. The shared floor supplies exactly those three; `.role-card` below
+  // (0,2,0) keeps overriding the layout properties it does set.
+  @include m.hug-buttons;
+
   display: block;
 
   // Lead-in that explains the role-picker surface. Same AAA muted colour + em

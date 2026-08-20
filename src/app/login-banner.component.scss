@@ -33,7 +33,13 @@
   }
 }
 
+// A GHOST variant of the shared button convention: it starts from `hug-button`
+// (so it can never fall back to the UA's private button font) and then trades
+// the filled surface for a transparent one — the overrides come after the
+// include, at equal specificity, so they win.
 .dismiss {
+  @include m.hug-button;
+
   flex: 0 0 auto;
   background: transparent;
   color: var(--hug-text-muted);

@@ -33,7 +33,7 @@ ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 # Served STANDALONE under the /login path prefix by the fe-gateway (Path=/login/**),
 # so the app base href — and thus every relative bundle + snap-config.js URL — must
 # be /login/. A root base (/) makes the browser fetch bundles at the origin root,
-# which the fe-gateway routes to the systems-web HOST (not this container), so they
+# which the fe-gateway routes to the HOST SHELL (not this container), so they
 # 404 and Angular never boots. Pairs with the fe-gateway StripPrefix=1 on the /login
 # route (hugmesh-generator) which maps /login/<asset> back to the webroot here.
 #

@@ -1,6 +1,6 @@
 # hugmesh-login-ui
 
-The login and account-security surface for [HugMesh](https://github.com/hugmesh-net) — an Angular
+The login and account-security surface for [HugMesh](https://github.com/hugmesh) — an Angular
 22 [native-federation](https://www.npmjs.com/package/@angular-architects/native-federation) remote
 that owns sign-in, two-stage registration, MFA, and the ban/suspension appeal flow.
 

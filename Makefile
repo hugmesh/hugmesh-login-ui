@@ -42,6 +42,6 @@ pentest-dast:
 			echo "    DAST harness reported findings/issues (non-blocking locally)."; \
 	else \
 		echo "    harness not found at $(PENTEST_HARNESS_DIR)/run-pentest.sh — clone the generator repo:"; \
-		echo "      git clone https://github.com/hugmesh-net/hugmesh-generator ../hugmesh-generator"; \
+		echo "      git clone https://github.com/hugmesh/hugmesh-generator ../hugmesh-generator"; \
 		echo "    then re-run (or pass PENTEST_HARNESS_DIR=...). Skipping DAST for now."; \
 	fi

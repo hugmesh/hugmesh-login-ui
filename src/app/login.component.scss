@@ -1,6 +1,13 @@
 @use 'tokens' as t;
+@use 'mixins' as m;
 
 .hug-login {
+  // Every action in this view (sign in, verify, complete registration) is a
+  // hugmesh button, not the browser's grey chrome. See the `hug-buttons` mixin
+  // for why the element selector — not only the `.hug-btn` class — is load
+  // bearing: these three buttons shipped with NO class at all.
+  @include m.hug-buttons;
+
   display: block;
   max-width: 28rem;
   margin: 2rem auto;
@@ -69,13 +76,11 @@
     }
   }
 
-  // A blocked Complete-registration button stays in the DOM (with helptext via
-  // aria-describedby) rather than disappearing — the disabled cue is dimming +
-  // the not-allowed cursor, never colour alone.
-  button[disabled] {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
+  // NOTE: a blocked Complete-registration button stays in the DOM (with helptext
+  // via aria-describedby) rather than disappearing, and its disabled cue is
+  // dimming + the not-allowed cursor, never colour alone. That rule used to live
+  // here as `button[disabled]`; it now comes from the shared `hug-button` mixin
+  // above, so it applies to every button in this view instead of only this one.
 
   // Footer link to the appeal/contact page for a suspended or banned visitor.
   // --hug-text-muted is AAA on the dark shell so the lead-in text stays legible.

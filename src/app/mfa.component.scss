@@ -1,9 +1,15 @@
 @use 'tokens' as t;
+@use 'mixins' as m;
 
 // Shared styling for the MFA surface (enroll wizard, step-up challenge, security
 // section). All colour cues are paired with a non-colour cue (border, weight,
 // text) and use the AAA --hug-* contract vars so the dark shell stays legible.
 .hug-mfa {
+  // The button convention (base + .primary/.danger) now lives in the shared
+  // `hug-button` mixin — it started life HERE as `.mfa-btn`, which is why no
+  // other view could reach it. Same declarations, so this surface is unchanged.
+  @include m.hug-buttons;
+
   display: block;
   max-width: 30rem;
   margin: 2rem auto;
@@ -49,47 +55,11 @@
     margin: 1rem 0;
   }
 
+  // `.mfa-btn` is kept as this surface's spelling of the shared convention: the
+  // MFA templates and specs address it by name, and its higher specificity
+  // (0,2,0 vs the 0,1,1 of the element floor above) keeps it authoritative.
   .mfa-btn {
-    display: inline-block;
-    padding: 0.55rem 1rem;
-    border: 1px solid var(--hug-border);
-    border-radius: t.$radius-sm;
-    background: var(--hug-bg-1);
-    color: var(--hug-text);
-    font: inherit;
-    text-decoration: none;
-    cursor: pointer;
-
-    &:hover:not([disabled]) {
-      border-color: var(--hug-accent);
-    }
-
-    // A visible focus ring (never rely on the default outline being removed).
-    &:focus-visible {
-      outline: 2px solid var(--hug-accent-soft);
-      outline-offset: 2px;
-    }
-
-    &[disabled] {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    &.primary {
-      border-color: var(--hug-accent);
-      background: var(--hug-accent);
-      // --hug-accent-on, never a hardcoded hex: the hardcoded #0a0a12 measured
-      // 4.10:1 on the shipped accent — an AA FAIL — and on an injected accent it
-      // could land anywhere. The token is auto-picked pure black/white by
-      // luminance, which is >= 4.5:1 for every sRGB accent (white = 4.81:1 here).
-      color: var(--hug-accent-on, #ffffff);
-      font-weight: 700;
-    }
-
-    &.danger {
-      border-color: var(--hug-error);
-      color: var(--hug-error);
-    }
+    @include m.hug-button;
   }
 
   // The QR matrix: a CSS grid of square cells. Each cell is dark or light; the

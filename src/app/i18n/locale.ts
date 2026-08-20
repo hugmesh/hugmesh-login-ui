@@ -56,7 +56,7 @@ const LANG_STORAGE_KEY = 'snap.login.lang';
  * This is load-bearing and easy to get wrong. Remote code executes inside the
  * HOST'S page, so a document-relative `fetch('i18n/de.json')` would resolve
  * against the host origin (hugmesh.net) — where it 404s, or worse, hits
- * the systems-web host and returns an HTML 200. `import.meta.url` is the URL of
+ * the host shell and returns an HTML 200. `import.meta.url` is the URL of
  * this module's own chunk, so the catalog is always fetched from the container
  * that shipped it — correct whether the remote is loaded cross-origin directly
  * or same-origin through the fe-gateway's `/login/**` route.

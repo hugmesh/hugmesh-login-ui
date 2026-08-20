@@ -82,10 +82,10 @@ COPY --from=build /app/dist/login/browser /usr/share/nginx/html
 # without rebuilding. With no env set it emits empty/false => the SPA stays DARK.
 COPY docker-entrypoint.d/40-snap-config.sh /docker-entrypoint.d/40-snap-config.sh
 RUN chmod +x /docker-entrypoint.d/40-snap-config.sh
-# Runtime THEME injection, same mechanism: writes snap-theme.css from
+# Runtime THEME injection, same mechanism: writes hug-theme.css from
 # SNAP_THEME_CSS (already-derived --hug-* token text; the derivation lives in
 # hugmesh-generator studio core/theme.py — this side does zero colour maths).
 # With no env set it writes an EMPTY file => the shipped default brand renders.
-COPY docker-entrypoint.d/50-snap-theme.sh /docker-entrypoint.d/50-snap-theme.sh
-RUN chmod +x /docker-entrypoint.d/50-snap-theme.sh
+COPY docker-entrypoint.d/50-hug-theme.sh /docker-entrypoint.d/50-hug-theme.sh
+RUN chmod +x /docker-entrypoint.d/50-hug-theme.sh
 EXPOSE 80

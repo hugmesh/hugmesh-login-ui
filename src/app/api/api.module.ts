@@ -42,6 +42,7 @@ import { DesktopInstallRequestAdminControllerService } from './services/desktop-
 import { DesktopCatalogAdminControllerService } from './services/desktop-catalog-admin-controller.service';
 import { AppealContactControllerService } from './services/appeal-contact-controller.service';
 import { AnnouncementSurfaceControllerService } from './services/announcement-surface-controller.service';
+import { AccountAppealUserControllerService } from './services/account-appeal-user-controller.service';
 import { DesktopSudoEntitlementControllerService } from './services/desktop-sudo-entitlement-controller.service';
 import { DesktopRegistryControllerService } from './services/desktop-registry-controller.service';
 import { WorkloadAdminControllerService } from './services/workload-admin-controller.service';
@@ -95,6 +96,7 @@ import { AnubisControllerService } from './services/anubis-controller.service';
     DesktopCatalogAdminControllerService,
     AppealContactControllerService,
     AnnouncementSurfaceControllerService,
+    AccountAppealUserControllerService,
     DesktopSudoEntitlementControllerService,
     DesktopRegistryControllerService,
     WorkloadAdminControllerService,

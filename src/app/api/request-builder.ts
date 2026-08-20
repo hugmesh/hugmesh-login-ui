@@ -2,6 +2,9 @@
 /* eslint-disable */
 import { HttpRequest, HttpParameterCodec, HttpParams, HttpHeaders, HttpContext } from '@angular/common/http';
 
+// Relative to the generated output dir (`src/app/api`, per ng-openapi-gen.json).
+import { BFF_CREDENTIALS } from '../http/bff-credentials';
+
 /**
  * Custom parameter codec to correctly handle the plus sign in parameter
  * values. See https://github.com/angular/angular/issues/18261
@@ -327,6 +330,14 @@ export class RequestBuilder {
 
     options = options || {};
 
+    // Credentialed-request opt-in (src/app/http/bff-credentials.ts). The browser
+    // holds NO bearer: auth rides in the httpOnly `bff_` cookie, so a credentialed
+    // call means withCredentials plus whatever headers the CALLER's policy adds
+    // (the double-submit X-CSRF-TOKEN on a mutating, non-cookie-mint request in
+    // cookie mode). Absent the token the request stays anonymous — which is what
+    // the public-floor reads rely on.
+    const credentials = options.context ? options.context.get(BFF_CREDENTIALS) : null;
+
     // Path parameters
     let path = this.operationPath;
     for (const pathParam of this._path.values()) {
@@ -356,13 +367,21 @@ export class RequestBuilder {
       httpHeaders = httpHeaders.set('Content-Type', this._bodyContentType);
     }
 
+    // Caller-supplied credentialed headers, applied last so they win.
+    if (credentials) {
+      for (const name of Object.keys(credentials.headers)) {
+        httpHeaders = httpHeaders.set(name, credentials.headers[name]);
+      }
+    }
+
     // Perform the request
     return new HttpRequest<T>(this.method.toUpperCase(), url, this._bodyContent, {
       params: httpParams,
       headers: httpHeaders,
       responseType: options.responseType,
       reportProgress: options.reportProgress,
-      context: options.context
+      context: options.context,
+      withCredentials: credentials !== null
     });
   }
 }

@@ -36,6 +36,7 @@ export { DesktopInstallRequestAdminControllerService } from './services/desktop-
 export { DesktopCatalogAdminControllerService } from './services/desktop-catalog-admin-controller.service';
 export { AppealContactControllerService } from './services/appeal-contact-controller.service';
 export { AnnouncementSurfaceControllerService } from './services/announcement-surface-controller.service';
+export { AccountAppealUserControllerService } from './services/account-appeal-user-controller.service';
 export { DesktopSudoEntitlementControllerService } from './services/desktop-sudo-entitlement-controller.service';
 export { DesktopRegistryControllerService } from './services/desktop-registry-controller.service';
 export { WorkloadAdminControllerService } from './services/workload-admin-controller.service';

@@ -1,5 +1,9 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, OnDestroy, inject, signal, computed } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { oidcEnabled } from './oidc-config';
+import { AuthControllerService } from './api/services/auth-controller.service';
+import { withBffCredentials } from './http/bff-credentials';
 
 export interface SnapSession {
   id: string;                 // always '' in the current native-login flow (not
@@ -86,12 +90,16 @@ const CSRF_COOKIE = 'XSRF-TOKEN';
  *     cross-tab sync via BroadcastChannel re-hydrate (there is no localStorage
  *     write to raise a `storage` event). */
 @Injectable({ providedIn: 'root' })
-export class SessionService {
+export class SessionService implements OnDestroy {
   private readonly key = 'hug.session';
   private readonly channel = 'hug-session-change';
   /** Cross-tab channel used ONLY in cookie mode (localStorage `storage` events
    *  cannot fire when nothing is written to localStorage). */
   private readonly bc: BroadcastChannel | null;
+  /** The generated, typed admin-bff client. `/bff/session` + `/bff/sessionOut` are
+   *  CREDENTIALED calls, so both go out with {@link withBffCredentials} — the
+   *  generated transport sends the httpOnly `bff_` cookie only when asked. */
+  private readonly auth = inject(AuthControllerService);
   readonly session = signal<SnapSession | null>(this.load());
   readonly loggedIn = computed(() => this.session() !== null);
   readonly isAdmin = computed(() => (this.session()?.roles ?? []).includes('admin'));
@@ -99,6 +107,10 @@ export class SessionService {
   readonly fullyRegistered = computed(() => this.session()?.registrationComplete === true);
 
   constructor() {
+    // Pin the generated client to the host-provided BFF origin so the wire URL is
+    // identical to the legacy `${__HUG_BFF_URL__}/bff/...` path (same pattern as
+    // PublicAnnouncementsService / AppealContactService).
+    this.auth.rootUrl = CFG.bff;
     // Keep the non-secret probe in lockstep with the initial signal state so a
     // black-box reader sees the roles even before any write (e.g. a legacy
     // localStorage session loaded on construction).
@@ -127,6 +139,22 @@ export class SessionService {
         window.addEventListener('storage', (e) => { if (e.key === this.key) this.setSession(this.load()); });
       }
     }
+  }
+
+  /**
+   * Close the cross-tab channel when this injector is torn down (an unmounted
+   * federated remote, and every unit test's TestBed).
+   *
+   * The channel's message handler RE-HYDRATES from `/bff/session`, so a dead
+   * instance left listening keeps issuing credentialed requests on an injector
+   * that no longer exists — and, because a failed re-hydrate calls clearLocal(),
+   * which broadcasts again, two such instances feed each other indefinitely.
+   * That was survivable while hydrate() used a raw `fetch` (each round-trip cost
+   * a real 404); once it moved onto the generated HttpClient client the failure
+   * became immediate and the loop tight enough to wedge the browser.
+   */
+  ngOnDestroy(): void {
+    this.bc?.close();
   }
 
   /** Cookie-mode same-document adopt: take the session another in-page instance
@@ -194,12 +222,11 @@ export class SessionService {
   clear(): void {
     // Best-effort: clear local state regardless of whether the call succeeds
     // (the cookie may already be gone). The CSRF token is exempt for
-    // /bff/sessionOut server-side, but we still send credentials.
-    void fetch(`${CFG.bff}/bff/sessionOut`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: this.csrfHeader(),
-    }).catch(() => undefined);
+    // /bff/sessionOut server-side, but we still send credentials. Fire-and-forget,
+    // so BOTH outcomes are swallowed — HttpClient errors on a non-2xx where the
+    // former `fetch` merely resolved, and neither must block the local clear.
+    this.auth.authSessionOut({}, withBffCredentials(this.csrfHeader()))
+      .subscribe({ next: () => undefined, error: () => undefined });
     if (!cookieModeEnabled()) localStorage.removeItem(this.key);
     this.setSession(null);
     this.broadcast();
@@ -233,13 +260,15 @@ export class SessionService {
     // mastodon". Auth custody is unchanged: /bff/session is cookie-authenticated
     // and returns NO token, only non-secret role/registration metadata.
     try {
-      const r = await fetch(`${CFG.bff}/bff/session`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: { accept: 'application/json' },
-      });
-      if (!r.ok) { this.clearLocal(); return null; }
-      const data = await r.json();
+      // A non-OK /bff/session used to be read off `r.ok`; the generated client
+      // ERRORS on it instead, so both "not logged in" paths land in the catch.
+      const data = await firstValueFrom(
+        this.auth.authSession({}, withBffCredentials()).pipe(
+          // The endpoint's OpenAPI response is an untyped Map<String,Object>;
+          // bridge it to the two non-secret fields this service reads.
+          map((body) => body as unknown as { roles?: string[]; registrationComplete?: boolean }),
+        ),
+      );
       const prior = this.session();
       const s: SnapSession = {
         // The cookie session is identified server-side, so there is no real

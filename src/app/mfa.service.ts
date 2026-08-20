@@ -1,5 +1,10 @@
 import { Injectable, inject } from '@angular/core';
+import { Observable, firstValueFrom } from 'rxjs';
 import { SessionService } from './session.service';
+import { MfaChallengeControllerService } from './api/services/mfa-challenge-controller.service';
+import { MfaEnrollmentControllerService } from './api/services/mfa-enrollment-controller.service';
+import { StrictHttpResponse } from './api/strict-http-response';
+import { bffFailure, withBffCredentials } from './http/bff-credentials';
 import {
   ChallengeFactor,
   MfaFactor,
@@ -19,16 +24,19 @@ const CFG = {
 const DARK_STATUS = 503;
 
 /**
- * Hand-written client for the admin-bff `/bff/mfa/*` contract — deliberately
- * mirrors {@link BffService}'s plain-`fetch` style (no generated client) so the
- * two stay byte-similar and reviewable side by side.
+ * Client for the admin-bff `/bff/mfa/*` contract, delegating to the GENERATED,
+ * typed {@link MfaEnrollmentControllerService} / {@link MfaChallengeControllerService}
+ * (under {@code src/app/api}) — the same ng-openapi-gen migration
+ * {@link PublicAnnouncementsService} and {@link AppealContactService} did for the
+ * anonymous reads. The wire contract is unchanged: identical paths, methods and
+ * bodies, with {@code rootUrl} pinned to the host-provided {@code __HUG_BFF_URL__}.
  *
  * AUTH (owner == authenticated subject ALWAYS): the owner is the authenticated
  * `bff_session` subject the BFF derives from the JWT `sub` / auth-name — NEVER a
- * request-body field. The browser holds NO bearer: every call sends
- * `credentials: 'include'` so the httpOnly `bff_` cookie rides along (the gateway
- * turns it into the upstream bearer server-side). The UI passes no subject
- * anywhere; it cannot enroll/list/remove anyone else's factors.
+ * request-body field. The browser holds NO bearer: every call is marked
+ * credentialed ({@link withBffCredentials}) so the httpOnly `bff_` cookie rides
+ * along (the gateway turns it into the upstream bearer server-side). The UI passes
+ * no subject anywhere; it cannot enroll/list/remove anyone else's factors.
  *
  * SHIPS DARK: while `app.casdoor.mfa.enabled=false` every endpoint answers 503.
  * Each method returns an {@link MfaResult} whose {@code dark} flag is set on a
@@ -39,53 +47,71 @@ const DARK_STATUS = 503;
 @Injectable({ providedIn: 'root' })
 export class MfaService {
   private readonly session = inject(SessionService);
+  private readonly enrollment = inject(MfaEnrollmentControllerService);
+  private readonly challenges = inject(MfaChallengeControllerService);
+
+  constructor() {
+    // Pin the generated clients to the host-provided BFF origin so the wire URL is
+    // identical to the legacy `${__HUG_BFF_URL__}/bff/mfa/...` paths.
+    this.enrollment.rootUrl = CFG.bff;
+    this.challenges.rootUrl = CFG.bff;
+  }
 
   // ---- ENROLL -------------------------------------------------------------
 
   /** Start TOTP enrollment. Factor stored DISABLED; secret/otpauthUri shown ONCE
    *  for the QR + manual-entry step. No step-up (bootstrap). */
   enrollTotp(): Promise<MfaResult<TotpEnrollStart>> {
-    return this.post<TotpEnrollStart>('/bff/mfa/enroll/totp');
+    return this.result(this.enrollment.mfaEnrollmentBeginTotp$Response({}, this.creds(true)));
   }
 
   /** Verify a 6-digit TOTP passcode and ENABLE the pending factor. Returns the
    *  display-once recovery codes (10, format XXXX-XXXX-XXXX-XXXX). */
   verifyTotp(passcode: string): Promise<MfaResult<{ enabled: boolean; recoveryCodes: string[] }>> {
-    return this.post('/bff/mfa/enroll/totp/verify', { passcode });
+    return this.result(
+      this.enrollment.mfaEnrollmentVerifyTotp$Response({ body: { passcode } }, this.creds(true)),
+    );
   }
 
   /** Request a WebAuthn registration challenge — feed to navigator.credentials.create(). */
   enrollWebauthnOptions(): Promise<MfaResult<WebAuthnOptions>> {
-    return this.post<WebAuthnOptions>('/bff/mfa/enroll/webauthn/options');
+    return this.result(this.enrollment.mfaEnrollmentWebauthnOptions$Response({}, this.creds(true)));
   }
 
   /** Submit the navigator.credentials.create() attestation to register the passkey. */
   verifyWebauthn(attestation: string): Promise<MfaResult<{ factorId: string; enabled: boolean }>> {
-    return this.post('/bff/mfa/enroll/webauthn/verify', { attestation });
+    return this.result(
+      this.enrollment.mfaEnrollmentWebauthnVerify$Response({ body: { attestation } }, this.creds(true)),
+    );
   }
 
   /** Request a WebAuthn assertion challenge for step-up — feed to
    *  navigator.credentials.get(); the result is submitted via {@link challenge}. */
   assertWebauthnOptions(): Promise<MfaResult<WebAuthnOptions>> {
-    return this.post<WebAuthnOptions>('/bff/mfa/assert/webauthn/options');
+    return this.result(
+      this.enrollment.mfaEnrollmentWebauthnAssertOptions$Response({}, this.creds(true)),
+    );
   }
 
   // ---- LIST / MUTATE ------------------------------------------------------
 
   /** List the caller's OWN factors (no secrets, ever). */
   factors(): Promise<MfaResult<{ factors: MfaFactor[] }>> {
-    return this.request('GET', '/bff/mfa/factors');
+    // GET — not mutating, so no CSRF header (the BFF require-matcher exempts it).
+    return this.result(this.enrollment.mfaEnrollmentListFactors$Response({}, this.creds(false)));
   }
 
   /** Remove one of the caller's factors. STEP-UP GATED (403 without fresh step-up). */
   removeFactor(id: string): Promise<MfaResult<{ removed: boolean }>> {
-    return this.request('DELETE', `/bff/mfa/factors/${encodeURIComponent(id)}`);
+    return this.result(this.enrollment.mfaEnrollmentRemoveFactor$Response({ id }, this.creds(true)));
   }
 
   /** Regenerate the display-once recovery code set (invalidates the prior set).
    *  STEP-UP GATED (403 without fresh step-up). */
   regenerateRecovery(): Promise<MfaResult<{ recoveryCodes: string[] }>> {
-    return this.post('/bff/mfa/recovery/regenerate');
+    return this.result(
+      this.enrollment.mfaEnrollmentRegenerateRecovery$Response({}, this.creds(true)),
+    );
   }
 
   // ---- STEP-UP CHALLENGE (existing, unchanged shape) ----------------------
@@ -94,48 +120,40 @@ export class MfaService {
    *  {@code credential} is the 6-digit code, the XXXX-…-formatted recovery code,
    *  or the navigator.credentials.get() response JSON string for webauthn. */
   challenge(factor: ChallengeFactor, credential: string): Promise<MfaResult<{ mfaSatisfied: boolean }>> {
-    return this.post('/bff/mfa/challenge', { factor, credential });
+    return this.result(
+      this.challenges.mfaChallengeChallenge$Response({ body: { factor, credential } }, this.creds(true)),
+    );
   }
 
   // ---- transport ----------------------------------------------------------
 
-  private post<T>(path: string, body?: unknown): Promise<MfaResult<T>> {
-    return this.request<T>('POST', path, body);
+  /** The credentialed context every `/bff/mfa/*` call rides on. The httpOnly
+   *  `bff_` cookie carries auth — NO Bearer header, ever. In cookie mode echo the
+   *  double-submit X-CSRF-TOKEN on every MUTATING call (these are NOT cookie-mint
+   *  endpoints, so the BFF require-matcher enforces CSRF). */
+  private creds(mutating: boolean) {
+    return withBffCredentials(
+      this.session.cookieMode && mutating ? this.session.csrfHeader() : {},
+    );
   }
 
-  /** The shared transport: cookie auth, JSON in/out, and the 503-is-dark mapping.
+  /** The shared outcome mapping: the 503-is-dark rule and a structured failure.
    *  Never throws — a network failure maps to a non-dark error result so callers
-   *  always get a structured outcome. */
-  private async request<T>(method: string, path: string, body?: unknown): Promise<MfaResult<T>> {
-    const headers: Record<string, string> = { accept: 'application/json' };
-    const mutating = method !== 'GET' && method !== 'HEAD';
-    // The httpOnly `bff_` cookie carries auth — NO Bearer header, ever. In cookie
-    // mode echo the double-submit X-CSRF-TOKEN on every mutating /bff/mfa/* call
-    // (these are NOT cookie-mint endpoints, so the BFF require-matcher enforces CSRF).
-    if (this.session.cookieMode && mutating) Object.assign(headers, this.session.csrfHeader());
-    const init: RequestInit = {
-      method,
-      headers,
-      // Send the opaque-session cookie; the gateway turns it into the bearer.
-      credentials: 'include',
-    };
-    if (body !== undefined) {
-      headers['content-type'] = 'application/json';
-      init.body = JSON.stringify(body);
-    }
-    let r: Response;
+   *  always get a structured outcome. The `$Response` variants are used so the
+   *  real HTTP status still reaches {@link MfaResult.status} on success. */
+  private async result<T>(call: Observable<StrictHttpResponse<unknown>>): Promise<MfaResult<T>> {
     try {
-      r = await fetch(`${CFG.bff}${path}`, init);
-    } catch {
-      return { ok: false, dark: false, status: 0, error: 'Network error' };
+      const r = await firstValueFrom(call);
+      return { ok: true, dark: false, status: r.status, data: (r.body ?? undefined) as T };
+    } catch (err) {
+      const { status, body } = bffFailure(err);
+      if (status === DARK_STATUS) {
+        return { ok: false, dark: true, status: DARK_STATUS };
+      }
+      if (status === 0) {
+        return { ok: false, dark: false, status: 0, error: 'Network error' };
+      }
+      return { ok: false, dark: false, status, error: body['error'] || `HTTP ${status}` };
     }
-    if (r.status === DARK_STATUS) {
-      return { ok: false, dark: true, status: DARK_STATUS };
-    }
-    const data = (await r.json().catch(() => undefined)) as any;
-    if (!r.ok) {
-      return { ok: false, dark: false, status: r.status, error: data?.error || `HTTP ${r.status}` };
-    }
-    return { ok: true, dark: false, status: r.status, data: data as T };
   }
 }

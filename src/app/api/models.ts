@@ -1,5 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
+export { AccountAppeal } from './models/account-appeal';
+export { AccountAppealSubmit } from './models/account-appeal-submit';
 export { AllowlistRequest } from './models/allowlist-request';
 export { Announcement } from './models/announcement';
 export { AnnouncementRequest } from './models/announcement-request';

@@ -201,20 +201,20 @@ describe('SessionService (cookie mode)', () => {
     expect(localStorage.getItem('hug.session')).toBeNull();
   });
 
-  it('hydrate() CORRECTS the roles in localStorage mode, keeping the identity', async () => {
+  it('hydrate() CORRECTS the roles in cookie mode, keeping the identity and persisting nothing', async () => {
     // Operator report 2026-08-14: hydrate() returned early in localStorage mode,
     // so login()'s hardcoded roles:['user'] guess was never corrected — /mod's
     // guard then denied its own moderator and crashed the remote's router
     // (NG04002 '/login'), i.e. "no clear way to administer matrix/mastodon".
     //
-    // NOTE — PRE-EXISTING FAILURE, red at origin/main too and NOT caused by the
-    // ng-openapi-gen migration: this case sits in the COOKIE-mode describe (which
-    // sets __HUG_SESSION_COOKIE_MODE__), where set() deliberately persists
-    // nothing, so the localStorage assertion below cannot hold. The equivalent
-    // localStorage-mode case passes in the OIDC describe further down. Ported to
-    // the HTTP layer unchanged rather than fixed here — fixing the placement is a
-    // separate change, and leaving it as a `fetch` spy would have made it a FALSE
-    // GREEN once the call moved off `fetch`.
+    // This is the COOKIE-mode half of that regression's coverage. It used to
+    // assert the correction reached localStorage — a localStorage-mode claim
+    // that cookie mode's set() deliberately never honours, so the case sat red
+    // with a note pointing here. What cookie mode actually promises: the
+    // correction reaches the returned session and the in-memory signal, the
+    // caller-established identity survives, and web storage stays EMPTY (the
+    // persist-nothing custody contract). The localStorage-mode half — the
+    // storage write — passes in the OIDC describe further down.
     const httpMock = TestBed.inject(HttpTestingController);
     svc.set({ id: '', label: 'e2e-mod', provider: 'password', roles: ['user'],
               registrationComplete: true } as any);
@@ -223,11 +223,12 @@ describe('SessionService (cookie mode)', () => {
       .flush({ roles: ['mod'], registrationComplete: true });
     const s = await pending;
     expect(s?.roles).toEqual(['mod']);
+    expect(svc.session()?.roles).toEqual(['mod']);
     // the caller-established identity survives (the shell renders this label)
     expect(s?.label).toBe('e2e-mod');
     expect(s?.provider).toBe('password');
-    // and the correction actually REACHES storage (the host shell re-reads it)
-    expect(JSON.parse(localStorage.getItem('hug.session')!).roles).toEqual(['mod']);
+    // and cookie mode's own contract holds: the correction never touches storage
+    expect(localStorage.getItem('hug.session')).toBeNull();
   });
 
   it('hydrate() drops to null on a non-OK /bff/session (not logged in)', async () => {
@@ -273,27 +274,25 @@ describe('SessionService (OIDC session mode)', () => {
     localStorage.clear();
   });
 
-  it('oidcSessionMode is FALSE by default (dark) and hydrate() is a no-op', async () => {
+  it('oidcSessionMode is FALSE by default (dark), and hydrate() still consults /bff/session', async () => {
     delete (globalThis as any).__HUG_OIDC_ENABLED__;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const svc = TestBed.inject(SessionService);
     expect(svc.oidcSessionMode).toBeFalse();
-    // localStorage mode + OIDC off → hydrate must NOT hit the network.
-    //
-    // NOTE — PRE-EXISTING FAILURE, red at origin/main too and NOT caused by the
-    // ng-openapi-gen migration: hydrate() has deliberately hit /bff/session in
-    // EVERY mode since the 2026-08-14 roles-correction fix (see its javadoc), so
-    // this assertion no longer matches the implementation. Restated at the HTTP
-    // layer with its intent intact rather than left as a `fetch` spy, which the
-    // migration would have turned into a FALSE GREEN. Reconciling the two is a
-    // separate change.
+    // This case once asserted hydrate() was a network no-op with OIDC off. That
+    // stopped being the implementation on 2026-08-14: hydrate() deliberately
+    // hits /bff/session in EVERY mode (see its javadoc — the early return is
+    // what stranded a moderator's hardcoded roles:['user'] guess), and the old
+    // assertion sat red with a note pointing here. What "ships dark" still
+    // promises: the OIDC flag itself stays FALSE, and an anonymous visitor gets
+    // exactly one cookie-authenticated probe whose 401 resolves to no session.
     const httpMock = TestBed.inject(HttpTestingController);
     const pending = svc.hydrate();
-    const issued = httpMock.match(() => true);
-    issued.forEach((r) => r.flush(null, { status: 401, statusText: 'Unauthorized' }));
-    await pending;
-    expect(issued.length).toBe(0);
+    const req = httpMock.expectOne((r) => r.url.includes('/bff/session'));
+    req.flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(await pending).toBeNull();
+    expect(svc.session()).toBeNull();
   });
 
   it('with OIDC on (cookie-mode flag off), hydrate() fetches /bff/session, tags provider=oidc, NO token persisted', async () => {

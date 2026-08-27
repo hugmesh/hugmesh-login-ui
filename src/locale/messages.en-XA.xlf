@@ -150,7 +150,7 @@
     </unit>
     <unit id="appeal.back">
       <notes>
-        <note category="location">src/app/appeal.component.html:111,114</note>
+        <note category="location">src/app/appeal.component.html:116,119</note>
         <note category="meaning">Link back to the sign-in page</note>
       </notes>
       <segment>
@@ -238,6 +238,226 @@
         <target>⟦Ýöüŕ åþþéåļ çöüļð ñöţ ƀé ŕéçöŕðéð ŕîğĥţ ñöŵ. Þļéåšé ţŕý åğåîñ, öŕ üšé ţĥé éɱåîļ åððŕéšš ƀéļöŵ.······················⟧</target>
       </segment>
     </unit>
+    <unit id="forgot.heading">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:7,12</note>
+        <note category="meaning">Heading of the forgot-password page</note>
+      </notes>
+      <segment>
+        <source> Reset your password </source>
+        <target>⟦ Ŕéšéţ ýöüŕ þåššŵöŕð ·····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.dark">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:21,26</note>
+        <note category="meaning">Shown when the mesh has no password-reset capability at all</note>
+      </notes>
+      <segment>
+        <source> This mesh cannot reset passwords automatically. Please contact an administrator to regain access to your account. </source>
+        <target>⟦ Ţĥîš ɱéšĥ çåññöţ ŕéšéţ þåššŵöŕðš åüţöɱåţîçåļļý. Þļéåšé çöñţåçţ åñ åðɱîñîšţŕåţöŕ ţö ŕéğåîñ åççéšš ţö ýöüŕ åççöüñţ. ····························⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.dark.contact">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:27,33</note>
+        <note category="meaning">Link to the appeal/contact page from the forgot-password page</note>
+      </notes>
+      <segment>
+        <source>Contact support</source>
+        <target>⟦Çöñţåçţ šüþþöŕţ····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.done">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:39,43</note>
+        <note category="meaning">Shown after the password was actually reset</note>
+      </notes>
+      <segment>
+        <source> Your password has been reset. You can now sign in with your new password. </source>
+        <target>⟦ Ýöüŕ þåššŵöŕð ĥåš ƀééñ ŕéšéţ. Ýöü çåñ ñöŵ šîğñ îñ ŵîţĥ ýöüŕ ñéŵ þåššŵöŕð. ·················⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.done.signIn">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:44,49</note>
+        <note category="meaning">Link back to the sign-in form after a successful reset</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+        <target>⟦Ɓåçķ ţö šîğñ îñ···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.intro">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:50,56</note>
+        <note category="meaning">Instruction on the first step of the forgot-password flow</note>
+      </notes>
+      <segment>
+        <source> Enter your username. If an account exists, we will email a one-time code to the address on file. </source>
+        <target>⟦ Éñţéŕ ýöüŕ üšéŕñåɱé. Îƒ åñ åççöüñţ éẋîšţš, ŵé ŵîļļ éɱåîļ å öñé-ţîɱé çöðé ţö ţĥé åððŕéšš öñ ƒîļé. ·····················⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.username.label">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:57,64</note>
+        <note category="meaning">Label for the username field on the forgot-password page</note>
+      </notes>
+      <segment>
+        <source>Username</source>
+        <target>⟦Üšéŕñåɱé··⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.username.placeholder">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:69,72</note>
+        <note category="meaning">Placeholder in the forgot-password username field</note>
+      </notes>
+      <segment>
+        <source>your username</source>
+        <target>⟦ýöüŕ üšéŕñåɱé···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.sent">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:96,103</note>
+        <note category="meaning">Shown after a reset code was requested — deliberately does not confirm the account exists</note>
+      </notes>
+      <segment>
+        <source> If that account exists, a one-time code is on its way to the email address on file. Enter it below along with your new password. </source>
+        <target>⟦ Îƒ ţĥåţ åççöüñţ éẋîšţš, å öñé-ţîɱé çöðé îš öñ îţš ŵåý ţö ţĥé éɱåîļ åððŕéšš öñ ƒîļé. Éñţéŕ îţ ƀéļöŵ åļöñğ ŵîţĥ ýöüŕ ñéŵ þåššŵöŕð. ····························⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.code.label">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:103,110</note>
+        <note category="meaning">Label for the one-time reset code field</note>
+      </notes>
+      <segment>
+        <source>Reset code</source>
+        <target>⟦Ŕéšéţ çöðé···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.code.placeholder">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:116,118</note>
+        <note category="meaning">Placeholder in the reset-code field</note>
+      </notes>
+      <segment>
+        <source>the code from your email</source>
+        <target>⟦ţĥé çöðé ƒŕöɱ ýöüŕ éɱåîļ·····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.newPassword.label">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:123,129</note>
+        <note category="meaning">Label for the new-password field</note>
+      </notes>
+      <segment>
+        <source>New password</source>
+        <target>⟦Ñéŵ þåššŵöŕð···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.newPassword.placeholder">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:135,137</note>
+        <note category="meaning">Placeholder in the new-password field</note>
+      </notes>
+      <segment>
+        <source>your new password</source>
+        <target>⟦ýöüŕ ñéŵ þåššŵöŕð·····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.startOver">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:160,170</note>
+        <note category="meaning">Button that returns to the first step to request another code</note>
+      </notes>
+      <segment>
+        <source> Didn&apos;t get a code? Start over </source>
+        <target>⟦ Ðîðñ&apos;ţ ğéţ å çöðé? Šţåŕţ öṽéŕ ········⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.cancel">
+      <notes>
+        <note category="location">src/app/forgot-password.component.html:181,186</note>
+        <note category="meaning">Link back to the sign-in form from the forgot-password page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+        <target>⟦Ɓåçķ ţö šîğñ îñ···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.request.submitting">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:99</note>
+        <note category="meaning">Forgot-password request button label while the request is in flight</note>
+      </notes>
+      <segment>
+        <source>Sending…</source>
+        <target>⟦Šéñðîñğ…··⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.request.submit">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:100</note>
+        <note category="meaning">Forgot-password request button label</note>
+      </notes>
+      <segment>
+        <source>Send reset code</source>
+        <target>⟦Šéñð ŕéšéţ çöðé····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.confirm.submitting">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:106</note>
+        <note category="meaning">Forgot-password confirm button label while the request is in flight</note>
+      </notes>
+      <segment>
+        <source>Resetting…</source>
+        <target>⟦Ŕéšéţţîñğ…···⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.confirm.submit">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:107</note>
+        <note category="meaning">Forgot-password confirm button label</note>
+      </notes>
+      <segment>
+        <source>Set new password</source>
+        <target>⟦Šéţ ñéŵ þåššŵöŕð····⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.error.network">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:189</note>
+        <note category="meaning">Forgot-password error — the server was unreachable</note>
+      </notes>
+      <segment>
+        <source>We could not reach the server. Please check your connection and try again.</source>
+        <target>⟦Ŵé çöüļð ñöţ ŕéåçĥ ţĥé šéŕṽéŕ. Þļéåšé çĥéçķ ýöüŕ çöññéçţîöñ åñð ţŕý åğåîñ.··················⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.error.invalid">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:191</note>
+        <note category="meaning">Forgot-password error — the submitted details were rejected</note>
+      </notes>
+      <segment>
+        <source>Please check the details you entered and try again.</source>
+        <target>⟦Þļéåšé çĥéçķ ţĥé ðéţåîļš ýöü éñţéŕéð åñð ţŕý åğåîñ.·············⟧</target>
+      </segment>
+    </unit>
+    <unit id="forgot.error.unknown">
+      <notes>
+        <note category="location">src/app/forgot-password.component.ts:193</note>
+        <note category="meaning">Forgot-password error — any other server-side failure</note>
+      </notes>
+      <segment>
+        <source>That did not work. Please try again in a moment.</source>
+        <target>⟦Ţĥåţ ðîð ñöţ ŵöŕķ. Þļéåšé ţŕý åğåîñ îñ å ɱöɱéñţ.···········⟧</target>
+      </segment>
+    </unit>
     <unit id="background.picker.label">
       <notes>
         <note category="location">src/app/login-background.component.html:34,41</note>
@@ -250,7 +470,7 @@
     </unit>
     <unit id="background.preset.fog">
       <notes>
-        <note category="location">src/app/login-background.component.ts:211</note>
+        <note category="location">src/app/login-background.component.ts:227</note>
         <note category="meaning">Name of the drifting-gradient login background</note>
       </notes>
       <segment>
@@ -260,7 +480,7 @@
     </unit>
     <unit id="background.preset.waves">
       <notes>
-        <note category="location">src/app/login-background.component.ts:213</note>
+        <note category="location">src/app/login-background.component.ts:229</note>
         <note category="meaning">Name of the rolling-waves login background</note>
       </notes>
       <segment>
@@ -270,7 +490,7 @@
     </unit>
     <unit id="background.preset.net">
       <notes>
-        <note category="location">src/app/login-background.component.ts:215</note>
+        <note category="location">src/app/login-background.component.ts:231</note>
         <note category="meaning">Name of the connected-points login background</note>
       </notes>
       <segment>
@@ -280,7 +500,7 @@
     </unit>
     <unit id="background.preset.globe">
       <notes>
-        <note category="location">src/app/login-background.component.ts:217</note>
+        <note category="location">src/app/login-background.component.ts:233</note>
         <note category="meaning">Name of the rotating-globe login background</note>
       </notes>
       <segment>
@@ -290,7 +510,7 @@
     </unit>
     <unit id="background.preset.static">
       <notes>
-        <note category="location">src/app/login-background.component.ts:219</note>
+        <note category="location">src/app/login-background.component.ts:235</note>
         <note category="meaning">Name of the still, non-animated login background</note>
       </notes>
       <segment>
@@ -300,7 +520,7 @@
     </unit>
     <unit id="background.preset.image">
       <notes>
-        <note category="location">src/app/login-background.component.ts:221</note>
+        <note category="location">src/app/login-background.component.ts:237</note>
         <note category="meaning">Name of the operator-supplied image login background</note>
       </notes>
       <segment>
@@ -400,7 +620,7 @@
     </unit>
     <unit id="login.submit">
       <notes>
-        <note category="location">src/app/login.component.html:71,76</note>
+        <note category="location">src/app/login.component.html:72,77</note>
         <note category="meaning">Submit button on the sign-in form</note>
       </notes>
       <segment>
@@ -410,7 +630,7 @@
     </unit>
     <unit id="login.mfa.intro">
       <notes>
-        <note category="location">src/app/login.component.html:80,85</note>
+        <note category="location">src/app/login.component.html:81,86</note>
         <note category="meaning">Instruction shown when sign-in needs a second factor</note>
       </notes>
       <segment>
@@ -420,7 +640,7 @@
     </unit>
     <unit id="login.mfa.code.label">
       <notes>
-        <note category="location">src/app/login.component.html:85,91</note>
+        <note category="location">src/app/login.component.html:86,92</note>
         <note category="meaning">Label for the two-factor passcode field</note>
       </notes>
       <segment>
@@ -430,7 +650,7 @@
     </unit>
     <unit id="login.mfa.code.placeholder">
       <notes>
-        <note category="location">src/app/login.component.html:95,98</note>
+        <note category="location">src/app/login.component.html:96,99</note>
         <note category="meaning">Placeholder in the two-factor passcode field</note>
       </notes>
       <segment>
@@ -440,7 +660,7 @@
     </unit>
     <unit id="login.mfa.submit">
       <notes>
-        <note category="location">src/app/login.component.html:109,115</note>
+        <note category="location">src/app/login.component.html:111,117</note>
         <note category="meaning">Submit button on the two-factor passcode form</note>
       </notes>
       <segment>
@@ -450,7 +670,7 @@
     </unit>
     <unit id="login.complete.greeting">
       <notes>
-        <note category="location">src/app/login.component.html:116,124</note>
+        <note category="location">src/app/login.component.html:118,126</note>
         <note category="meaning">Greeting on the complete-registration card. {{PLACEHOLDER}} is the user&apos;s account label</note>
       </notes>
       <segment>
@@ -468,7 +688,7 @@
     </unit>
     <unit id="login.complete.fieldset.legend">
       <notes>
-        <note category="location">src/app/login.component.html:125,128</note>
+        <note category="location">src/app/login.component.html:127,130</note>
         <note category="meaning">Legend of the name fieldset on the complete-registration card</note>
       </notes>
       <segment>
@@ -478,7 +698,7 @@
     </unit>
     <unit id="login.complete.displayName.label">
       <notes>
-        <note category="location">src/app/login.component.html:127,132</note>
+        <note category="location">src/app/login.component.html:129,134</note>
         <note category="meaning">Label for the display-name field</note>
       </notes>
       <segment>
@@ -488,7 +708,7 @@
     </unit>
     <unit id="login.complete.displayName.placeholder">
       <notes>
-        <note category="location">src/app/login.component.html:137,142</note>
+        <note category="location">src/app/login.component.html:139,144</note>
         <note category="meaning">Placeholder in the display-name field</note>
       </notes>
       <segment>
@@ -498,7 +718,7 @@
     </unit>
     <unit id="login.complete.displayName.help">
       <notes>
-        <note category="location">src/app/login.component.html:146,153</note>
+        <note category="location">src/app/login.component.html:148,155</note>
         <note category="meaning">Help text under the display-name field</note>
       </notes>
       <segment>
@@ -508,7 +728,7 @@
     </unit>
     <unit id="login.complete.screenReaderName.label">
       <notes>
-        <note category="location">src/app/login.component.html:154,159</note>
+        <note category="location">src/app/login.component.html:156,161</note>
         <note category="meaning">Label for the ASCII screen-reader name field</note>
       </notes>
       <segment>
@@ -518,7 +738,7 @@
     </unit>
     <unit id="login.complete.screenReaderName.placeholder">
       <notes>
-        <note category="location">src/app/login.component.html:166,172</note>
+        <note category="location">src/app/login.component.html:168,174</note>
         <note category="meaning">Placeholder in the ASCII screen-reader name field</note>
       </notes>
       <segment>
@@ -528,7 +748,7 @@
     </unit>
     <unit id="login.complete.help">
       <notes>
-        <note category="location">src/app/login.component.html:180,187</note>
+        <note category="location">src/app/login.component.html:182,189</note>
         <note category="meaning">Help text describing what the Complete registration button does</note>
       </notes>
       <segment>
@@ -538,7 +758,7 @@
     </unit>
     <unit id="login.complete.submit">
       <notes>
-        <note category="location">src/app/login.component.html:191,200</note>
+        <note category="location">src/app/login.component.html:194,203</note>
         <note category="meaning">Button that finishes registration</note>
       </notes>
       <segment>
@@ -546,9 +766,19 @@
         <target>⟦ Çöɱþļéţé ŕéğîšţŕåţîöñ ······⟧</target>
       </segment>
     </unit>
+    <unit id="login.forgotLink">
+      <notes>
+        <note category="location">src/app/login.component.html:218,222</note>
+        <note category="meaning">Link to the forgot-password page, shown under the sign-in form</note>
+      </notes>
+      <segment>
+        <source> Forgot your password? <pc id="0" equivStart="START_LINK" equivEnd="CLOSE_LINK" type="link" dispStart="&lt;a routerLink=&quot;forgot-password&quot; data-testid=&quot;login-forgot-link&quot;&gt;" dispEnd="&lt;/a&gt;">Reset it</pc></source>
+        <target>⟦ Ƒöŕğöţ ýöüŕ þåššŵöŕð? <pc id="0" equivStart="START_LINK" equivEnd="CLOSE_LINK" type="link" dispStart="&lt;a routerLink=&quot;forgot-password&quot; data-testid=&quot;login-forgot-link&quot;&gt;" dispEnd="&lt;/a&gt;">Ŕéšéţ îţ</pc>··················································⟧</target>
+      </segment>
+    </unit>
     <unit id="login.appealLink">
       <notes>
-        <note category="location">src/app/login.component.html:210,214</note>
+        <note category="location">src/app/login.component.html:224,228</note>
         <note category="meaning">Link to the appeal page, shown under the sign-in form</note>
       </notes>
       <segment>
@@ -558,7 +788,7 @@
     </unit>
     <unit id="login.securityLink">
       <notes>
-        <note category="location">src/app/login.component.html:225,229</note>
+        <note category="location">src/app/login.component.html:239,243</note>
         <note category="meaning">Link to the account security / MFA page</note>
       </notes>
       <segment>

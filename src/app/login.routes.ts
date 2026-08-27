@@ -23,6 +23,7 @@ import { Routes } from '@angular/router';
 import { localeGuard } from './i18n/locale.guard';
 import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
+import { ForgotPasswordComponent } from './forgot-password.component';
 import { MfaEnrollComponent } from './mfa-enroll.component';
 import { MfaChallengeComponent } from './mfa-challenge.component';
 import { MfaSecurityComponent } from './mfa-security.component';
@@ -81,6 +82,11 @@ import { MfaSecurityComponent } from './mfa-security.component';
 const ROUTES: Routes = [
   { path: '', component: LoginComponent },
   { path: 'appeal', component: AppealComponent },
+  // FORGOT PASSWORD — the recovery route the platform had no equivalent of. It is a
+  // SIBLING of the login form, not a child of any guard: the whole point is that the
+  // visitor has no session and no working credential, so anything that required either
+  // would be the lock-out itself. Mounted by the host at /login/forgot-password.
+  { path: 'forgot-password', component: ForgotPasswordComponent },
   { path: 'mfa/enroll', component: MfaEnrollComponent },
   { path: 'mfa/challenge', component: MfaChallengeComponent },
   { path: 'security', component: MfaSecurityComponent },
@@ -89,8 +95,8 @@ const ROUTES: Routes = [
 /**
  * The exposed federation surface (`./routes`), unchanged in URL shape: a
  * PATHLESS parent consumes no path segment, so every URL the host and the e2e
- * harness already drive (`/login`, `/login/appeal`, `/login/mfa/challenge`,
- * `/login/security`) resolves exactly as before.
+ * harness already drive (`/login`, `/login/appeal`, `/login/forgot-password`,
+ * `/login/mfa/challenge`, `/login/security`) resolves exactly as before.
  *
  * The parent exists only to carry {@link localeGuard}, which loads the
  * translation catalog before any child component is instantiated. `canMatch`

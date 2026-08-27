@@ -51,6 +51,28 @@ export interface LoginResult {
  *  BffService.login} and {@link BffService.loginLocal} classify identically. */
 const BLOCKED_STATUS_TOKENS = ['account_banned', 'account_suspended'] as const;
 
+/** The result of either leg of the forgot-password flow ({@link BffService.requestPasswordReset} /
+ *  {@link BffService.confirmPasswordReset}).
+ *
+ *  Deliberately CARRIES NO per-account information. The request leg answers the same
+ *  `{ ok: true }` whether or not the username exists — the BFF flattens that on purpose so
+ *  this permitAll endpoint is not a membership oracle — and this UI must not reintroduce the
+ *  distinction by, say, remembering which usernames "worked". */
+export interface PasswordResetResult {
+  ok: boolean;
+  /** The reset surface is DARK (HTTP 503: `casdoor.password-reset.enabled=false`, or no
+   *  SMTP provisioned) — this mesh cannot reset a password at all. Distinct from a failure,
+   *  because the user must be told to contact support rather than to try again. */
+  dark?: boolean;
+  /** Set on failure — a short, honest reason NEVER rendered as a success. */
+  error?: string;
+  /** The server's own message for a refused confirm, already flattened by the BFF to a
+   *  single non-revealing sentence. Shown verbatim BECAUSE it is the server's reason: the
+   *  sibling profile page's habit of discarding it and printing "please try again" is what
+   *  made these failures undiagnosable. Blank when the server gave none. */
+  message?: string;
+}
+
 /** The result of a structured appeal submission ({@link BffService.submitAppeal}). */
 export interface AppealSubmitResult {
   ok: boolean;
@@ -415,4 +437,85 @@ export class BffService {
       return { ok: false, error: 'server' };
     }
   }
+
+  /**
+   * FORGOT-PASSWORD leg 1 — ask the BFF to have the IdP mail a one-time code to the
+   * address it holds for `username`. `POST /bff/password-reset/request` (user-bff, the
+   * service that already owns the anonymous `/bff/login` leg).
+   *
+   * Plain `fetch`, like {@link login} and {@link loginLocal} and for the same reason: the
+   * generated clients under `src/app/api` are generated from the ADMIN-bff contract, and
+   * these are user-bff endpoints that contract does not describe.
+   *
+   * NO credentials and NO CSRF header: the caller is anonymous by construction (that is
+   * the entire point), the endpoint mints no cookie, and CSRF is disabled at both the
+   * gateway and the BFF. Sending `credentials: 'include'` here would attach whatever stale
+   * `bff_` cookie the browser still held to a request that must not depend on one.
+   *
+   * ANTI-ENUMERATION IS A UI RESPONSIBILITY TOO. A well-formed request answers 202 whether
+   * or not the account exists, and this method maps that to a single `{ ok: true }`. The
+   * caller MUST show the same confirmation either way — never "we found your account".
+   *
+   * Never throws.
+   */
+  async requestPasswordReset(username: string): Promise<PasswordResetResult> {
+    let r: Response;
+    try {
+      r = await fetch(`${CFG.bff}/bff/password-reset/request`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+    } catch {
+      return { ok: false, error: 'network' };
+    }
+    // 503 — the reset surface is dark. A fact about the MESH, identical for every visitor,
+    // so it is safe (and necessary) to state plainly.
+    if (r.status === 503) return { ok: false, dark: true, error: 'unavailable' };
+    if (!r.ok) {
+      const err = (await r.json().catch(() => ({}) as any)) as any;
+      // 400 is a malformed request (blank username) — the ONLY non-503 rejection this leg
+      // can produce, because the server refuses to distinguish accounts.
+      return { ok: false, error: r.status === 400 ? 'invalid' : 'server', message: err?.error };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * FORGOT-PASSWORD leg 2 — redeem the mailed code and set the new password.
+   * `POST /bff/password-reset/confirm`.
+   *
+   * `ok` is true ONLY on a genuine 2xx, i.e. only when the IdP actually wrote the
+   * credential. A refused reset returns `ok:false` WITH the server's own (already
+   * flattened) message, so the page can say why instead of guessing — the failure mode
+   * that makes a broken reset indistinguishable from a mistyped code.
+   *
+   * Never throws.
+   */
+  async confirmPasswordReset(
+    username: string,
+    code: string,
+    newPassword: string,
+  ): Promise<PasswordResetResult> {
+    let r: Response;
+    try {
+      r = await fetch(`${CFG.bff}/bff/password-reset/confirm`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, code, newPassword }),
+      });
+    } catch {
+      return { ok: false, error: 'network' };
+    }
+    if (r.status === 503) return { ok: false, dark: true, error: 'unavailable' };
+    if (!r.ok) {
+      const err = (await r.json().catch(() => ({}) as any)) as any;
+      // The BFF answers { error: "<one flattened sentence>" } for a refusal and
+      // { error: "validation failed", fields: {...} } for a malformed body.
+      const message = typeof err?.error === 'string' ? err.error : undefined;
+      return { ok: false, error: r.status === 400 ? 'invalid' : 'server', message };
+    }
+    return { ok: true };
+  }
+
 }

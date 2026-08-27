@@ -390,6 +390,99 @@ describe('BffService', () => {
     (await nextRequest('/bff/me/appeal')).error(new ProgressEvent('network'));
     expect(await p).toEqual({ ok: false, error: 'network' });
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FORGOT PASSWORD — the anonymous reset legs (user-bff, plain fetch like the
+  // sign-in calls, because the committed contract under src/app/api is admin-bff's).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  it('requestPasswordReset POSTs the username to /bff/password-reset/request', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ op: 'password-reset-request', status: 'accepted' },
+      { ok: true, status: 202 }));
+
+    const result = await service.requestPasswordReset('alice');
+
+    expect(result.ok).toBe(true);
+    const call = callTo('/bff/password-reset/request');
+    expect(call).toBeTruthy();
+    expect(JSON.parse(String(lastInit().body))).toEqual({ username: 'alice' });
+  });
+
+  /** The caller is anonymous BY CONSTRUCTION. Attaching a stale bff_ cookie would make a
+   *  recovery flow depend on the very session the user has lost. */
+  it('requestPasswordReset maps 503 to dark (this mesh has no reset at all)', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 503 }));
+    const result = await service.requestPasswordReset('alice');
+    expect(result).toEqual(jasmine.objectContaining({ ok: false, dark: true }));
+  });
+
+  it('requestPasswordReset maps a transport failure to network, never to ok', async () => {
+    fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
+    const result = await service.requestPasswordReset('alice');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('network');
+    expect(result.dark).toBeUndefined();
+  });
+
+  it('requestPasswordReset maps 400 to invalid and 500 to server', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ error: 'validation failed' }, { ok: false, status: 400 }));
+    expect((await service.requestPasswordReset('')).error).toBe('invalid');
+
+    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 500 }));
+    expect((await service.requestPasswordReset('alice')).error).toBe('server');
+  });
+
+  it('confirmPasswordReset POSTs username, code and newPassword', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ op: 'password-reset-confirm', status: 'reset' }));
+
+    const result = await service.confirmPasswordReset('alice', '123456', 's3cret-enough');
+
+    expect(result.ok).toBe(true);
+    expect(callTo('/bff/password-reset/confirm')).toBeTruthy();
+    expect(JSON.parse(String(lastInit().body)))
+      .toEqual({ username: 'alice', code: '123456', newPassword: 's3cret-enough' });
+  });
+
+  /** A refused reset must NEVER read as ok — the user would go on to sign in with a
+   *  password that was never set. This is the sibling of the server-side guard that stops
+   *  a Casdoor refusal becoming a success acknowledgement. */
+  it('confirmPasswordReset reports ok:false for a refused reset, carrying the reason', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(
+      { error: 'we could not complete that reset — the code may have expired' },
+      { ok: false, status: 400 }));
+
+    const result = await service.confirmPasswordReset('alice', '000000', 's3cret-enough');
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('invalid');
+    expect(result.message).toContain('the code may have expired');
+  });
+
+  it('confirmPasswordReset maps 503 to dark', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({}, { ok: false, status: 503 }));
+    const result = await service.confirmPasswordReset('alice', '123456', 's3cret-enough');
+    expect(result).toEqual(jasmine.objectContaining({ ok: false, dark: true }));
+  });
+
+  it('confirmPasswordReset never throws on a transport failure', async () => {
+    fetchSpy.and.rejectWith(new TypeError('Failed to fetch'));
+    const result = await service.confirmPasswordReset('alice', '123456', 's3cret-enough');
+    expect(result).toEqual({ ok: false, error: 'network' });
+  });
+
+  it('confirmPasswordReset sends no credentials either', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({}));
+    await service.confirmPasswordReset('alice', '123456', 's3cret-enough');
+    expect(lastInit().credentials).toBeUndefined();
+  });
+
+  /** The result type carries no per-account field at all — a UI cannot leak what it is
+   *  never given, and this pins that the shape stays that way. */
+  it('neither leg returns any per-account information', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({}, { ok: true, status: 202 }));
+    const requested = await service.requestPasswordReset('alice');
+    expect(Object.keys(requested).sort()).toEqual(['ok']);
+  });
 });
 
 // ── D6 cookie mode: Bearer dropped, credentials + CSRF on mutations ──────────
@@ -474,4 +567,21 @@ describe('BffService (cookie mode)', () => {
     md.flush({});
     await p;
   });
+
+
+  /** The recovery legs are anonymous BY CONSTRUCTION. Even in cookie mode — where every
+   *  other mutating call carries credentials and a CSRF header — these must not, or a
+   *  flow for a user who has LOST their session would depend on holding one. */
+  it('the password-reset legs send no credentials and no CSRF header even in cookie mode', async () => {
+    spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
+    fetchSpy.and.resolveTo(jsonResponse({}, { ok: true, status: 202 }));
+
+    await service.requestPasswordReset('alice');
+
+    const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
+    expect(String(fetchSpy.calls.mostRecent().args[0])).toContain('/bff/password-reset/request');
+    expect(init.credentials).toBeUndefined();
+    expect((init.headers as Record<string, string>)['X-CSRF-TOKEN']).toBeUndefined();
+  });
+
 });

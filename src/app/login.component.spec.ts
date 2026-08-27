@@ -309,6 +309,28 @@ describe('LoginComponent', () => {
   // Complete-registration (stage two) — unchanged flow, reached via session
   // =====================================================================
 
+  /**
+   * THE ENTRY POINT. A reset flow nobody can find is a reset flow that does not exist —
+   * before this link there was no route to password recovery anywhere in the platform,
+   * and the sign-in form is the one page a locked-out user is certain to reach.
+   */
+  it('links to the forgot-password page from the sign-in form', () => {
+    spyOn(sessionStub, 'loggedIn').and.returnValue(false);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const link = el.querySelector('[data-testid="login-forgot-link"]') as HTMLAnchorElement;
+    expect(link).withContext('forgot-password link is present on the login view').toBeTruthy();
+    expect(link.getAttribute('href')).toContain('forgot-password');
+  });
+
+  it('shows the forgot-password link to a signed-OUT visitor (the only ones who need it)', () => {
+    spyOn(sessionStub, 'loggedIn').and.returnValue(false);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    // Never behind a session check: the visitor who needs it has none by definition.
+    expect(el.querySelector('[data-testid="login-forgot-link"]')).toBeTruthy();
+  });
+
   it('links a suspended/banned visitor to the appeal page (routerLink to appeal)', () => {
     spyOn(sessionStub, 'loggedIn').and.returnValue(false);
     fixture.detectChanges();

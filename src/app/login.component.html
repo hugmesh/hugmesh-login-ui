@@ -208,6 +208,17 @@
     </p>
   }
 
+  <!-- FORGOT PASSWORD. Sits directly under the sign-in form because that is where a
+       failed sign-in leaves the user's eye, and it is deliberately ABOVE the appeal link:
+       "I mistyped my password" is overwhelmingly the more common reason a sign-in failed
+       than "my account was banned", and a user who cannot find this link is locked out
+       just as surely as if the flow did not exist. -->
+  <p class="forgot-link"
+     i18n="Link to the forgot-password page, shown under the sign-in form|@@login.forgotLink">
+    Forgot your password?
+    <a routerLink="forgot-password" data-testid="login-forgot-link">Reset it</a>
+  </p>
+
   <p class="appeal-link"
      i18n="Link to the appeal page, shown under the sign-in form|@@login.appealLink">
     Account suspended or banned?

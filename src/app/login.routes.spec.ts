@@ -3,6 +3,7 @@ import { LOGIN_ROUTES } from './login.routes';
 import { localeGuard } from './i18n/locale.guard';
 import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
+import { ForgotPasswordComponent } from './forgot-password.component';
 import { MfaEnrollComponent } from './mfa-enroll.component';
 import { MfaChallengeComponent } from './mfa-challenge.component';
 import { MfaSecurityComponent } from './mfa-security.component';
@@ -50,6 +51,21 @@ describe('LOGIN_ROUTES (exposed ./routes federation contract)', () => {
     expect(at('appeal')?.component).toBe(AppealComponent);
   });
 
+  it('exposes the ForgotPasswordComponent at the `forgot-password` path', () => {
+    // The recovery route. It is part of the FEDERATION CONTRACT: the host mounts it at
+    // /login/forgot-password and the sign-in form links to it relatively, so losing it
+    // here silently strands every locked-out user on a dead link.
+    expect(at('forgot-password')?.component).toBe(ForgotPasswordComponent);
+  });
+
+  it('does NOT guard the forgot-password route behind anything', () => {
+    // A visitor reaching this page has no session and no working credential BY
+    // DEFINITION, so any canActivate/canMatch on it would be the lock-out itself.
+    const route = at('forgot-password');
+    expect(route?.canActivate).toBeUndefined();
+    expect(route?.canMatch).toBeUndefined();
+  });
+
   it('declares every route with either a component or children (no dead routes)', () => {
     for (const route of mounted()) {
       expect(route.component || route.children).withContext(`route ${route.path}`).toBeTruthy();
@@ -79,10 +95,11 @@ describe('LOGIN_ROUTES (exposed ./routes federation contract)', () => {
     expect(at('callback')).toBeUndefined();
   });
 
-  it('mounts the same five paths the host and e2e harness already drive', () => {
+  it('mounts the paths the host and e2e harness already drive, plus forgot-password', () => {
     expect(mounted().map((r) => r.path)).toEqual([
       '',
       'appeal',
+      'forgot-password',
       'mfa/enroll',
       'mfa/challenge',
       'security',

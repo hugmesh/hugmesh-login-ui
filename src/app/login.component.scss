@@ -31,6 +31,10 @@
 
   input {
     display: block;
+    // width:100% is measured on the CONTENT box by default, so padding and
+    // border pushed the field ~20px past its fieldset — flush against the
+    // right edge of a 390px phone viewport. Border-box makes 100% mean 100%.
+    box-sizing: border-box;
     width: 100%;
     margin-bottom: 0.5rem;
     padding: 0.4rem 0.5rem;

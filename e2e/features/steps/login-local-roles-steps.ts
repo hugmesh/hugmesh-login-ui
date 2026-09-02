@@ -75,8 +75,26 @@ Given('the local handoff for {string} succeeds', async ({ page }, roleId: string
 });
 
 Given('the passwordless sign-in for {string} succeeds but registration is incomplete', async ({ page }, _roleId: string) => {
+  // Stateful boundary: /bff/session is 401 (anonymous) until the handoff
+  // "mints the cookie", then 200 with the same non-secret projection the
+  // admin-bff returns. The app hydrates from it right after the sign-in (and on
+  // entry); left unmocked it would 404 and the just-established session would
+  // be dropped as "not logged in" -- the real BFF answers 200 here.
+  let cookieMinted = false;
+  await page.route('**/bff/session', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    if (!cookieMinted) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'unauthenticated' }) });
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ roles: ['user'], registrationComplete: false, mfaSatisfied: false }),
+    });
+  });
   await page.route('**/bff/login/local', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
+    cookieMinted = true;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

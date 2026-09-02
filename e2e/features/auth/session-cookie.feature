@@ -8,7 +8,10 @@
 # black-box read surface. Sibling TABS learn of a sign-in over the
 # 'hug-session-change' BroadcastChannel and re-hydrate from the cookie — exactly
 # once: a hydrate is a read and never posts back, so two tabs must settle
-# instead of re-hydrating each other forever.
+# instead of re-hydrating each other forever. A sign-out is the same channel in
+# the other direction: POST /bff/sessionOut lands FIRST (the cookie is dead
+# before anyone is told — the "sign-out did not sign out" order), then the one
+# post makes this tab re-hydrate to anonymous.
 #
 # OFFLINE (NOT @cluster): mocks ONLY the network boundary — POST /bff/login and
 # GET /bff/session — context-wide and STATEFULLY (401 until the mocked sign-in
@@ -43,4 +46,16 @@ Feature: Cookie-custody session — in memory only, hydrated from /bff/session, 
     Then the complete-registration gate is shown
     And the second tab hydrates the same session over the broadcast channel
     And the two tabs settle without a re-hydrate storm
+    And nothing is persisted to web storage
+
+  Scenario: a sign-out in another tab expires the cookie first, then drops this tab to anonymous
+    Given a fresh browser context
+    And the BFF mints a session cookie for "role-mod@gmail.com" with an incomplete registration
+    And a second tab is open on the login view
+    And the login view is shown
+    When "role-mod@gmail.com" signs in with their username and password
+    Then the complete-registration gate is shown
+    And the second tab hydrates the same session over the broadcast channel
+    When the second tab signs out, expiring the cookie server-side before announcing it
+    Then this tab drops to no session over the broadcast channel
     And nothing is persisted to web storage

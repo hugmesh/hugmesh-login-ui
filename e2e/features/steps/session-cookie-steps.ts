@@ -19,7 +19,7 @@
 // auth-steps.ts (playwright-bdd binds steps globally across features).
 
 import { expect, Page } from '@playwright/test';
-import { Given, Then } from '../support/fixtures';
+import { Given, When, Then } from '../support/fixtures';
 import {
   ensureLoginFormReady,
   readPersistedSession,
@@ -73,6 +73,18 @@ Given(
       });
     });
 
+    // POST /bff/sessionOut: the real logout — deletes the server session and
+    // expires the cookie, so every later /bff/session read is a 401.
+    await context.route('**/bff/sessionOut', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      server.cookieMinted = false;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ loggedOut: true }),
+      });
+    });
+
     // GET /bff/session: the cookie-authenticated read every hydrate performs —
     // 401 while anonymous, then the SAME non-secret projection the admin-bff
     // returns ({roles, registrationComplete, mfaSatisfied}; no token, no id).
@@ -105,7 +117,33 @@ Given('a second tab is open on the login view', async ({ context }) => {
   pageRegistry.set(SECOND_TAB, tab);
 });
 
+// ─── Whens ──────────────────────────────────────────────────────────────────
+
+When('the second tab signs out, expiring the cookie server-side before announcing it', async ({}) => {
+  // login-ui has no sign-out control of its own (the host shell owns it), so
+  // the test drives the other tab at the same two boundaries
+  // SessionService.clear() touches, in the same ORDER: POST /bff/sessionOut is
+  // awaited (the cookie is dead server-side) and only THEN the one post on the
+  // 'hug-session-change' channel. The receiving tab — the page under test — runs
+  // the real service: its handler is a cookie read, which now 401s.
+  const before = server.sessionReads;
+  await secondTab().evaluate(async () => {
+    await fetch('/bff/sessionOut', { method: 'POST', credentials: 'include' });
+    const bc = new BroadcastChannel('hug-session-change');
+    bc.postMessage('changed');
+    bc.close();
+  });
+  expect(server.cookieMinted).toBe(false);
+  await expect.poll(() => server.sessionReads, { message: 'the announced sign-out made this tab re-read /bff/session' }).toBeGreaterThan(before);
+});
+
 // ─── Thens ──────────────────────────────────────────────────────────────────
+
+Then('this tab drops to no session over the broadcast channel', async ({ page }) => {
+  await expect
+    .poll(async () => await readSessionProbe(page), { message: 'the sign-out reaches this tab' })
+    .toBeNull();
+});
 
 Then('the in-memory session carries the roles the BFF reported', async ({ page }) => {
   // hydrate() replaces login()'s roles:['user'] guess with the server's array,

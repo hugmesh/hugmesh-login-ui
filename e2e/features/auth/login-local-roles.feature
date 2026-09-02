@@ -13,7 +13,9 @@
 # against them (the established offline idiom). This surface previously had ZERO
 # e2e — regressions here silently break Studio one-click sign-in. Honesty: the
 # success path asserts a genuinely-established in-memory password session (read
-# off the __HUG_SESSION__ probe, with nothing in web storage) AND the following
+# off the __HUG_SESSION__ probe, with no credential in web storage — the
+# `hug.session` fleet mirror carries the same non-secret projection) AND the
+# following
 # complete-registration gate (not merely that some text changed); the fallback
 # path asserts the EXACT message and the password form actually returning.
 @auth

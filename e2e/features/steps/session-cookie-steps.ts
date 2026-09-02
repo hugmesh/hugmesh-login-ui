@@ -1,8 +1,11 @@
 // Step definitions backing features/auth/session-cookie.feature — the
-// httpOnly-cookie session custody (login-ui #3): a sign-in holds the session in
-// MEMORY only (nothing in web storage), hydrates it from GET /bff/session, and
-// tells sibling TABS over the 'hug-session-change' BroadcastChannel so they
-// re-hydrate — exactly once, with no re-hydrate storm between tabs.
+// httpOnly-cookie session CUSTODY (login-ui #3) and the `hug.session` fleet
+// mirror that is its non-secret TRANSPORT: a sign-in holds no credential in web
+// storage, hydrates the session from GET /bff/session, publishes the projection
+// the not-yet-migrated remotes read, and tells sibling TABS over the
+// 'hug-session-change' BroadcastChannel so they re-hydrate — exactly once, with
+// no re-hydrate storm between tabs (both tabs write the mirror, so an
+// unconditional republish would make them wake each other forever).
 //
 // OFFLINE, NOT @cluster: mocks ONLY the network boundary (POST /bff/login and
 // GET /bff/session) via context.route — CONTEXT-wide, because the cross-tab
@@ -21,9 +24,10 @@
 import { expect, Page } from '@playwright/test';
 import { Given, When, Then } from '../support/fixtures';
 import {
-  LEGACY_SESSION_KEY,
+  FLEET_SESSION_MIRROR_KEY,
   ensureLoginFormReady,
-  readPersistedSession,
+  evaluateFleetRemoteGuard,
+  readFleetMirror,
   readSessionProbe,
   usernameFor,
   waitForSessionProbeRoles,
@@ -158,7 +162,7 @@ When(
         id: 'shell-user', label: 'shell-user', provider: 'password',
         roles: ['user'], registrationComplete: false,
       }));
-    }, LEGACY_SESSION_KEY);
+    }, FLEET_SESSION_MIRROR_KEY);
     await expect
       .poll(() => server.sessionReads, { message: 'the mirror write reached this tab as a live-cookie hydrate' })
       .toBeGreaterThan(mirrored);
@@ -169,7 +173,7 @@ When(
     await tab.evaluate(async (key) => {
       await fetch('/bff/sessionOut', { method: 'POST', credentials: 'include' });
       localStorage.removeItem(key);
-    }, LEGACY_SESSION_KEY);
+    }, FLEET_SESSION_MIRROR_KEY);
     expect(server.cookieMinted).toBe(false);
     await expect
       .poll(() => server.sessionReads, { message: 'the mirror removal made this tab re-read /bff/session' })
@@ -193,9 +197,16 @@ Then('the in-memory session carries the roles the BFF reported', async ({ page }
   expect(probe.registrationComplete).toBe(false);
 });
 
-Then('the second tab hydrates the same session over the broadcast channel', async ({}) => {
-  // Nothing was written to web storage, so the ONLY way this tab can learn of
-  // the sign-in is the BroadcastChannel post followed by its own cookie read.
+Then('the second tab learns of the sign-in and hydrates the same session', async ({}) => {
+  // HONESTY: since login-ui publishes the fleet mirror again there are TWO live
+  // cross-tab transports — the BroadcastChannel post and the `storage` event the
+  // mirror write raises — so this step does NOT prove the channel is the only
+  // one. What it does prove is the part that matters and that a lost transport
+  // would break: the other tab, provably anonymous a moment ago (its bootstrap
+  // read got the 401), ends up holding the session with the SERVER's roles,
+  // reached by its own cookie read. Channel-exclusivity is pinned separately in
+  // the unit suite (hydrate() never posts; the mirror is written only from
+  // set()/clear()), and the mirror-only transport has its own scenario below.
   const probe = await waitForSessionProbeRoles(secondTab());
   expect(probe.roles).toEqual(server.roles);
   expect(probe.registrationComplete).toBe(false);
@@ -214,10 +225,57 @@ Then('the two tabs settle without a re-hydrate storm', async ({ page }) => {
   expect((await readSessionProbe(tab))?.roles).toEqual(server.roles);
 });
 
-Then('nothing is persisted to web storage', async ({ page }) => {
-  expect(await readPersistedSession(page)).toBeNull();
-  const tab = pageRegistry.get(SECOND_TAB);
-  if (tab) expect(await readPersistedSession(tab)).toBeNull();
+/** The half of the contract #3 actually retired: web storage holds no
+ *  CREDENTIAL. Auth rides the httpOnly `bff_` cookie, so the published mirror
+ *  must carry only the five non-secret fields and nothing token-shaped. */
+Then('no credential is persisted to web storage', async ({ page }) => {
+  for (const p of [page, pageRegistry.get(SECOND_TAB)].filter(Boolean) as Page[]) {
+    const mirror = await readFleetMirror(p);
+    expect(Object.keys(mirror ?? {}).sort()).toEqual(['id', 'label', 'provider', 'registrationComplete', 'roles']);
+    for (const key of Object.keys(mirror ?? {})) expect(/token|secret|cookie|password/i.test(key)).toBe(false);
+    expect(JSON.stringify(mirror ?? {})).not.toMatch(/bff_|XSRF|Bearer|eyJ/); // no cookie, CSRF token or JWT ever reaches storage
+  }
+});
+
+/** The other half — the one whose absence locked every role-home out: the
+ *  mirror the not-yet-migrated remotes read must exist and carry the SERVER's
+ *  roles, not login()'s roles:['user'] guess. */
+Then("the fleet mirror carries the server's roles for the not-yet-migrated remotes", async ({ page }) => {
+  await expect
+    .poll(async () => (await readFleetMirror(page))?.roles, { message: 'the hydrated roles reaching the fleet mirror' })
+    .toEqual(server.roles);
+  const mirror = await readFleetMirror(page);
+  expect(mirror?.registrationComplete).toBe(false);
+  // ...and it agrees with this app's own in-memory state.
+  expect(mirror?.roles).toEqual((await readSessionProbe(page))?.roles);
+});
+
+/** Two tabs both publish the mirror, so "settled" must also mean they settled on
+ *  the SAME bytes — otherwise each would keep overwriting the other's value. */
+Then('both tabs agree on one fleet mirror value', async ({ page }) => {
+  const here = await readFleetMirror(page);
+  const there = await readFleetMirror(secondTab());
+  expect(here).not.toBeNull();
+  expect(there).toEqual(here);
+  expect(here?.roles).toEqual(server.roles);
+});
+
+/** A sign-out has to REMOVE the mirror: it is the only sign-out signal the
+ *  not-yet-migrated remotes get, and a value left behind leaves them showing a
+ *  signed-in user whose cookie is dead. */
+Then('the fleet mirror is gone, signing the not-yet-migrated remotes out too', async ({ page }) => {
+  await expect
+    .poll(async () => await readFleetMirror(page), { message: 'the sign-out removing the fleet mirror' })
+    .toBeNull();
+  expect(await evaluateFleetRemoteGuard(page)).toEqual({ loggedIn: false, isAdmin: false, guard: '/login' });
+});
+
+/** The fleet regression itself, run as the fleet runs it: hugmesh-admin-ui's own
+ *  reader + adminGuard, verbatim, against the value login-ui published. */
+Then("a not-yet-migrated remote's own guard admits the admin", async ({ page }) => {
+  await expect
+    .poll(async () => await evaluateFleetRemoteGuard(page), { message: "a sibling remote's guard admitting the signed-in admin" })
+    .toEqual({ loggedIn: true, isAdmin: true, guard: true });
 });
 
 

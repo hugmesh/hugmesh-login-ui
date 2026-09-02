@@ -2,10 +2,13 @@
 // structured appeal-submit form (src/app/appeal.component.ts, POST
 // /bff/me/appeal). Offline, NOT @cluster — mocks ONLY the network boundary
 // (page.route), same idiom as appeal-contact-steps.ts. The "signed-in"
-// precondition is seeded directly into localStorage `hug.session` via
-// addInitScript (the protected-route.feature idiom) rather than a live sign-in,
-// since AppealComponent's showAppealForm only reads SessionService.loggedIn()
-// (session !== null) — it does not itself re-verify the cookie client-side.
+// precondition is a mocked `GET /bff/session` answering 200: since login-ui #3
+// the session is the httpOnly `bff_` cookie and nothing else, and the app
+// hydrates its in-memory session from that endpoint on every entry
+// (sessionHydrateGuard) — so "the BFF still recognises this browser's cookie"
+// IS the precondition, modelled at the boundary rather than seeded into web
+// storage. AppealComponent's showAppealForm reads SessionService.loggedIn()
+// (session !== null) off that hydrate.
 //
 // "the appeal page is shown" / "I open the appeal page directly" / the mailto
 // assertions are already defined in auth-steps.ts / appeal-contact-steps.ts and
@@ -13,7 +16,6 @@
 
 import { expect } from '@playwright/test';
 import { Given, When, Then } from '../support/fixtures';
-import { SESSION_KEY } from '../../tests/helpers/roles';
 
 const FORM_SECTION = '[data-testid="appeal-form-section"]';
 const FORM = '[data-testid="appeal-form"]';
@@ -22,30 +24,30 @@ const SUBMIT_BUTTON = '[data-testid="appeal-submit"]';
 const SUBMITTED = '[data-testid="appeal-submitted"]';
 const SUBMIT_ERROR = '[data-testid="appeal-submit-error"]';
 
-// ─── Givens — seed the curtailed-but-still-authenticated session ──────────
+// ─── Givens — the curtailed-but-still-authenticated session ────────────────
 
 Given(
-  'a signed-in session is seeded for the {string} persona',
+  'the browser holds a live session cookie for the {string} persona',
   async ({ page, fixture }, handle: string) => {
     const f = fixture(handle);
-    // Mirrors the persisted SnapSession shape (session.service.ts) — non-secret
-    // metadata only, no token field (auth rides in the httpOnly bff_ cookie
-    // this offline harness cannot mint; showAppealForm only checks that a
-    // session object exists, per the component's own javadoc on suspended/
-    // banned principals whose cookie still authenticates server-side).
-    const session = JSON.stringify({
-      id: `${f.provider}:${f.handle}`,
-      label: f.handle,
-      provider: f.provider,
-      roles: f.roles ?? ['user'],
-      registrationComplete: f.registered,
+    // The cookie itself is httpOnly and minted server-side, so this offline
+    // harness models it where the app observes it: GET /bff/session answers 200
+    // with the persona's NON-SECRET metadata (the same {roles,registrationComplete}
+    // the admin-bff returns — no token, no id). A PROFILE suspension/ban is not a
+    // Casdoor-role flip, so such a principal's cookie still authenticates (the
+    // component's own javadoc), which is exactly what this 200 asserts.
+    await page.route('**/bff/session', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          roles: f.roles ?? ['user'],
+          registrationComplete: f.registered,
+          mfaSatisfied: false,
+        }),
+      });
     });
-    await page.addInitScript(
-      ({ key, value }: { key: string; value: string }) => {
-        window.localStorage.setItem(key, value);
-      },
-      { key: SESSION_KEY, value: session },
-    );
   },
 );
 

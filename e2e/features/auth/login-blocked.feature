@@ -34,7 +34,7 @@ Feature: Blocked sign-in routes to the appeal page (banned / suspended)
     Then the appeal page is shown
     And the blocked reason "Repeated spam reports" is announced in an assertive live region
     And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
-    And no session is stored
+    And no session is held
 
   Scenario: a suspended sign-in is likewise routed to the appeal page
     Given a fresh browser context
@@ -43,7 +43,7 @@ Feature: Blocked sign-in routes to the appeal page (banned / suspended)
     When "bob_banned" signs in with their username and password
     Then the appeal page is shown
     And the blocked reason "Under review by moderators" is announced in an assertive live region
-    And no session is stored
+    And no session is held
 
   @cluster
   Scenario: a genuinely-blocked account is auto-routed to appeal on a real sign-in (cross-user, live)
@@ -52,4 +52,4 @@ Feature: Blocked sign-in routes to the appeal page (banned / suspended)
     When "bob_banned" signs in with their username and password
     Then the appeal page is shown
     And the appeal page announces a blocked reason
-    And no session is stored
+    And no session is held

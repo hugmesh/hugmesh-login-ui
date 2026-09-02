@@ -15,10 +15,11 @@
 # Same offline idiom as appeal-contact.feature (real component -> BffService ->
 # fetch pipeline, only the network boundary mocked via page.route). NOT
 # @cluster: nothing here needs a live admin-bff. The "signed-in" precondition is
-# seeded directly into localStorage `hug.session` (the protected-route.feature
-# idiom) rather than driven through a live sign-in — SessionService.loggedIn()
-# only cares that a session object exists, and this keeps the scenario
-# deterministic without a live Casdoor round-trip.
+# a mocked GET /bff/session answering 200 (login-ui #3: the session is the
+# httpOnly bff_ cookie and nothing else, hydrated from that endpoint on every
+# entry) rather than a live sign-in — SessionService.loggedIn() only cares that
+# the hydrate produced a session, and this keeps the scenario deterministic
+# without a live Casdoor round-trip.
 #
 # Honesty: no OR-oracle. The ALLOW scenario asserts a genuine server-confirmed
 # 2xx flips `submitted` (the form itself disappears, replaced by the
@@ -32,7 +33,7 @@
 Feature: Structured appeal submit — a curtailed signed-in session can submit and gets a real confirmation
 
   Scenario: A signed-in, curtailed visitor sees the structured appeal form and gets a real confirmation on success
-    Given a signed-in session is seeded for the "suspended@gmail.com" persona
+    Given the browser holds a live session cookie for the "suspended@gmail.com" persona
     And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     And submitting a structured appeal succeeds with status "PENDING" and id "appeal-123"
     When I open the appeal page directly
@@ -49,7 +50,7 @@ Feature: Structured appeal submit — a curtailed signed-in session can submit a
     And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
 
   Scenario: A submit that the server rejects as unauthenticated shows an honest error, never a false confirmation
-    Given a signed-in session is seeded for the "suspended@gmail.com" persona
+    Given the browser holds a live session cookie for the "suspended@gmail.com" persona
     And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
     And submitting a structured appeal is rejected as unauthenticated
     When I open the appeal page directly

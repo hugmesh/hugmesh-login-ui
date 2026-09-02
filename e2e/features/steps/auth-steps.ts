@@ -17,8 +17,10 @@ import {
   SELECTORS,
   completeMfaChallenge,
   ensureLoginFormReady,
-  readSession,
+  readPersistedSession,
+  readSessionProbe,
   signIn,
+  waitForSessionProbeRoles,
 } from '../../tests/helpers/roles';
 import { pageRegistry } from './_registry';
 
@@ -85,13 +87,14 @@ Then('the MFA challenge is shown', async ({ page }) => {
 
 // ─── Thens — ALLOW outcomes ─────────────────────────────────────────
 
-/** Assert that a non-null session was written to localStorage and carries
- *  the expected provider string (e.g. `'password'` or `'oidc'`). Reads
- *  the raw `hug.session` key via {@link readSession}. */
-Then('the session is stored for the {word} provider', async ({ page }, provider: string) => {
-  const session = (await readSession(page)) as { provider?: string } | null;
-  expect(session).not.toBeNull();
-  expect(session?.provider).toBe(provider.toLowerCase());
+/** Assert that the sign-in established an IN-MEMORY session carrying the
+ *  expected provider string (e.g. `'password'`) — read off the non-secret
+ *  `__HUG_SESSION__` probe once it has hydrated — and that NOTHING was
+ *  persisted to web storage (the retired `hug.session` key stays absent). */
+Then('the session is held in memory for the {word} provider', async ({ page }, provider: string) => {
+  const session = await waitForSessionProbeRoles(page);
+  expect(session.provider).toBe(provider.toLowerCase());
+  expect(await readPersistedSession(page)).toBeNull();
 });
 
 /** Assert that the login view is gone after a successful sign-in,
@@ -141,10 +144,11 @@ Then('a sign-in error is announced', async ({ page }) => {
   await expect(err).toContainText(/sign-in failed/i);
 });
 
-/** Assert that no session was persisted — localStorage `hug.session`
- *  should be absent or null after a failed sign-in attempt. */
-Then('no session is stored', async ({ page }) => {
-  expect(await readSession(page)).toBeNull();
+/** Assert that no session was established: the in-memory probe is null after
+ *  a failed/refused sign-in, and nothing was persisted to web storage either. */
+Then('no session is held', async ({ page }) => {
+  expect(await readSessionProbe(page)).toBeNull();
+  expect(await readPersistedSession(page)).toBeNull();
 });
 
 /** Assert that the login view remains visible (a failed sign-in must NOT

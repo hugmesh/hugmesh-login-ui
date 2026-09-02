@@ -20,7 +20,7 @@ Feature: Login denials — invalid credentials fail closed (DENY)
     And the login view is shown
     When "nobody" signs in with their username and password
     Then a sign-in error is announced
-    And no session is stored
+    And no session is held
     And the login view is still shown
 
   Scenario: a rejected sign-in never redirects to Casdoor

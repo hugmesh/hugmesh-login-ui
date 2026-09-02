@@ -11,13 +11,14 @@
 # HOST SHELL (this remote's standalone dev shell mounts only LOGIN_ROUTES and
 # has no protected surface of its own), so these ship dark until a live
 # integration-test host is wired (E2E_LIVE=1). The guard's decision logic is
-# covered offline by registration.guard.spec.ts (karma). The ALLOW scenario is
-# runnable against a seeded localStorage session on the live host — no real
-# Casdoor round-trip is needed, but the host shell itself is.
+# covered offline by registration.guard.spec.ts (karma). The ALLOW persona signs
+# in FOR REAL: since login-ui #3 the session is the httpOnly bff_ cookie and
+# nothing else (no localStorage mirror to seed), so the host shell learns of it
+# only by hydrating GET /bff/session with that cookie.
 #
 # ALLOW/DENY pairing: the signed-out visitor (and by extension any
 # not-fully-registered session) is DENIED with a redirect to the login view;
-# a seeded fully-registered persona is ALLOWED through to the protected view
+# a signed-in, fully-registered persona is ALLOWED through to the protected view
 # (asserted by the protected surface actually rendering — data-testid
 # "matrix-view" from the matrix remote — not merely by the URL).
 @auth @cluster
@@ -37,6 +38,6 @@ Feature: Protected routes — signed-out visitors are redirected to login (regis
     Then the visitor is redirected to the login view
 
   Scenario: a fully-registered session passes the gate to the protected view (ALLOW)
-    Given "alice@gmail.com" has a seeded fully-registered session in their own context
+    Given "alice@gmail.com" signs in to a fully-registered session in their own context
     When "alice@gmail.com" opens the protected "/social/matrix" surface in their own context
     Then "alice@gmail.com" is not redirected to login and the Matrix view is shown

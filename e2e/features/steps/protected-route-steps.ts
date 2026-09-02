@@ -2,18 +2,24 @@
 // registeredGuard redirect exercised through the FEDERATED HOST SHELL
 // (@cluster; the standalone dev shell has no protected surface of its own).
 //
-// Cross-persona isolation follows the repo's registry pattern: the seeded
+// Cross-persona isolation follows the repo's registry pattern: the signed-in
 // persona gets its OWN browser context (newE2eContext + ctxRegistry), closed by
-// the After hook in features/support/fixtures.ts, so the seeded session can
-// never leak into the signed-out visitor's scenario.
+// the After hook in features/support/fixtures.ts, so that session can never
+// leak into the signed-out visitor's scenario.
+//
+// The ALLOW persona signs in FOR REAL through the native form. Since login-ui #3
+// the session is the httpOnly `bff_` cookie and nothing else — there is no
+// localStorage mirror left to seed — so the only way to hold a session is to
+// have the BFF mint one, and the host shell then hydrates it from GET /bff/session
+// with that cookie.
 
 import { expect } from '@playwright/test';
 import { Given, When, Then } from '../support/fixtures';
 import {
   SELECTORS,
-  SESSION_KEY,
   ensureLoginFormReady,
   newE2eContext,
+  signIn,
 } from '../../tests/helpers/roles';
 import { ctxRegistry, pageRegistry } from './_registry';
 
@@ -25,30 +31,16 @@ const MATRIX_VIEW = '[data-testid="matrix-view"]';
 // ─── Givens ────────────────────────────────────────────────────────
 
 Given(
-  '{string} has a seeded fully-registered session in their own context',
+  '{string} signs in to a fully-registered session in their own context',
   async ({ browser, fixture }, handle: string) => {
     const f = fixture(handle);
     const ctx = await newE2eContext(browser);
     ctxRegistry.set(handle, ctx);
     const page = await ctx.newPage();
-    // Seed the LEGACY localStorage-mode session (the mode the host ships with;
-    // no __HUG_* flags): the host's SessionService reads `hug.session` on
-    // construction, so registrationComplete=true satisfies registeredGuard
-    // without a live Casdoor round-trip. Non-secret metadata only — no token
-    // field exists in the persisted shape.
-    const session = JSON.stringify({
-      id: `${f.provider}:${f.handle}`,
-      label: f.handle,
-      provider: f.provider,
-      roles: f.roles ?? ['user'],
-      registrationComplete: true,
-    });
-    await page.addInitScript(
-      ({ key, value }: { key: string; value: string }) => {
-        window.localStorage.setItem(key, value);
-      },
-      { key: SESSION_KEY, value: session },
-    );
+    // A real native sign-in: the BFF mints the httpOnly bff_ cookie (the ONLY
+    // session custody), and a fully-registered identity leaves the login view.
+    await signIn(page, f);
+    await expect(page.locator(SELECTORS.loginView)).toHaveCount(0, { timeout: 15_000 });
     pageRegistry.set(handle, page);
   },
 );
@@ -63,7 +55,7 @@ When(
   '{string} opens the protected {string} surface in their own context',
   async ({}, handle: string, path: string) => {
     const page = pageRegistry.get(handle);
-    if (!page) throw new Error(`No page registered for "${handle}" — seed the session first`);
+    if (!page) throw new Error(`No page registered for "${handle}" — sign in first`);
     await page.goto(path, { waitUntil: 'domcontentloaded' });
   },
 );

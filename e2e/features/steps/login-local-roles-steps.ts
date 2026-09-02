@@ -9,7 +9,7 @@
 // CORS preflight; the fulfilled responses carry permissive CORS headers so the
 // real fetch resolves. "the login view is shown" / "the native username and
 // password fields are shown" / "the complete-registration gate is shown" /
-// "the session is stored for the <provider> provider" are reused from
+// "the session is held in memory for the <provider> provider" are reused from
 // auth-steps.ts (bound globally across features).
 
 import { expect } from '@playwright/test';

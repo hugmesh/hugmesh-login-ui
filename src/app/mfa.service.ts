@@ -128,13 +128,11 @@ export class MfaService {
   // ---- transport ----------------------------------------------------------
 
   /** The credentialed context every `/bff/mfa/*` call rides on. The httpOnly
-   *  `bff_` cookie carries auth — NO Bearer header, ever. In cookie mode echo the
-   *  double-submit X-CSRF-TOKEN on every MUTATING call (these are NOT cookie-mint
-   *  endpoints, so the BFF require-matcher enforces CSRF). */
+   *  `bff_` cookie carries auth — NO Bearer header, ever. Echo the double-submit
+   *  X-CSRF-TOKEN on every MUTATING call (these are NOT cookie-mint endpoints,
+   *  so the BFF require-matcher enforces CSRF). */
   private creds(mutating: boolean) {
-    return withBffCredentials(
-      this.session.cookieMode && mutating ? this.session.csrfHeader() : {},
-    );
+    return withBffCredentials(mutating ? this.session.csrfHeader() : {});
   }
 
   /** The shared outcome mapping: the 503-is-dark rule and a structured failure.

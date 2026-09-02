@@ -12,7 +12,8 @@
 # /bff/login/local are all mocked via page.route; the REAL component pipeline runs
 # against them (the established offline idiom). This surface previously had ZERO
 # e2e — regressions here silently break Studio one-click sign-in. Honesty: the
-# success path asserts a genuinely-persisted password session AND the following
+# success path asserts a genuinely-established in-memory password session (read
+# off the __HUG_SESSION__ probe, with nothing in web storage) AND the following
 # complete-registration gate (not merely that some text changed); the fallback
 # path asserts the EXACT message and the password form actually returning.
 @auth
@@ -41,7 +42,7 @@ Feature: Passwordless local-role sign-in (Studio agent role picker)
     And the login view is shown
     When I pick the "brandowner" role
     Then the complete-registration gate is shown
-    And the session is stored for the password provider
+    And the session is held in memory for the password provider
 
   Scenario: a role that needs a verification code falls back to the password form
     Given the local agent advertises roles "brandowner" and "operator"

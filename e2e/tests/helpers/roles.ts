@@ -1,11 +1,12 @@
 import { Browser, BrowserContext, Page, expect } from '@playwright/test';
 
-/** Mirror of the persisted session shape the app's SessionService writes to
- *  localStorage `hug.session` (src/app/session.service.ts `SnapSession`).
- *  Deliberately has NO token field: the browser never holds a bearer — auth
- *  rides in the httpOnly `bff_` cookie, and only this non-secret metadata is
- *  persisted (localStorage mode only; the cookie custody persists nothing). */
-export interface StoredSnapSession {
+/** Mirror of the NON-SECRET session metadata the app's SessionService holds in
+ *  memory and mirrors onto the `__HUG_SESSION__` probe (src/app/session.service.ts
+ *  `SnapSession`). Deliberately has NO token field: the browser never holds a
+ *  bearer — auth rides in the httpOnly `bff_` cookie — and NOTHING about the
+ *  session is persisted to web storage (login-ui #3 retired the localStorage
+ *  `hug.session` mirror), so the probe is the only black-box read surface. */
+export interface ProbedSnapSession {
   id: string;
   label: string;
   provider: 'google' | 'discord' | 'oidc' | 'password';
@@ -37,15 +38,16 @@ export interface StoredSnapSession {
  * ("pending") gate rather than navigating home.
  */
 export interface LoginFixture {
-  /** Fixture key + the persona's display label (also the seeded-session label). */
+  /** Fixture key + the persona's display label. */
   handle: string;
   /** The username typed into our native form (defaults to {@link handle}). */
   username?: string;
   /** The password typed into our native form. */
   password?: string;
-  /** The provider tag stamped on a directly-SEEDED session (protected-route /
-   *  appeal-submit seed localStorage without a live sign-in). Native sign-ins
-   *  mint a `password` session. */
+  /** The provider tag a scenario expects on the in-memory session. Native
+   *  sign-ins (the password form or a local role) mint a `password` session;
+   *  the appeal-submit scenarios model a live cookie through a mocked
+   *  `GET /bff/session` instead of a sign-in and never read this. */
   provider: 'google' | 'discord' | 'oidc' | 'password';
   /** Expected sign-in outcome the (mocked/live) BFF produces. */
   status: 'active' | 'mfa' | 'invalid' | 'banned' | 'suspended';
@@ -73,8 +75,9 @@ export const LOGIN_FIXTURES: LoginFixture[] = [
   // DENY: wrong credentials — the BFF rejects sign-in (401).
   { handle: 'nobody', username: 'nobody', password: 'wrong-password', provider: 'password', status: 'invalid', registered: true },
 
-  // Directly-seeded personas for the appeal / protected-route features (no live
-  // sign-in — the session is written straight to localStorage).
+  // Persona for the appeal-submit feature: the "still holds a live bff_ cookie"
+  // precondition is a mocked GET /bff/session (nothing is seeded into web
+  // storage — there is no session storage to seed since login-ui #3).
   { handle: 'suspended@gmail.com', username: 'suspended', password: 'correct-horse', provider: 'password', status: 'active', registered: true },
 
   // BLOCKED persona — a banned/suspended account whose fresh sign-in is refused
@@ -117,15 +120,19 @@ export const SELECTORS = {
   securityView: '[data-testid="mfa-security-view"]',
 } as const;
 
-/** The localStorage key the SessionService persists the SnapSession under. */
-export const SESSION_KEY = 'hug.session';
+/**
+ * The RETIRED localStorage key of the former session mirror (login-ui #3). The
+ * app neither reads nor writes it any more; the harness reads it ONLY to prove
+ * that nothing is persisted there ({@link readPersistedSession} must be null).
+ */
+export const LEGACY_SESSION_KEY = 'hug.session';
 
 /**
  * The NON-SECRET post-hydrate session probe the SessionService mirrors onto
- * `globalThis` (src/app/session.service.ts `SESSION_PROBE`). In cookie custody
- * mode NOTHING is persisted to web storage — the hydrated session lives only in
- * the in-memory signal — so this global is the ONLY black-box surface an offline
- * e2e can read the persona's roles back from. */
+ * `globalThis` (src/app/session.service.ts `SESSION_PROBE`). NOTHING is
+ * persisted to web storage — the hydrated session lives only in the in-memory
+ * signal — so this global is the ONLY black-box surface an e2e can read the
+ * persona's roles back from. */
 export const SESSION_PROBE = '__HUG_SESSION__';
 
 /** The username typed for a fixture (defaults to its handle). */
@@ -190,57 +197,39 @@ export async function completeMfaChallenge(page: Page, passcode: string): Promis
   await page.click(SELECTORS.mfaSubmitButton);
 }
 
-/** Read the persisted SnapSession off localStorage (null when not signed in). */
-export async function readSession(page: Page): Promise<unknown | null> {
-  return await page.evaluate((key) => {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-  }, SESSION_KEY);
-}
-
 /**
- * Poll until a persisted `hug.session` appears in the page's localStorage
- * (the write lands asynchronously, after the /bff/login fetch resolves) and
- * return it. expect.poll-based — the platform's wait idiom.
+ * Read whatever sits under the RETIRED `hug.session` localStorage key. The
+ * only correct answer is `null`: the app persists no session metadata (a
+ * non-null read would mean the localStorage mode came back).
  */
-export async function waitForStoredSession(
-  page: Page,
-  timeoutMs = 10_000,
-): Promise<StoredSnapSession> {
-  await expect
-    .poll(async () => (await readSession(page)) !== null, {
-      timeout: timeoutMs,
-      message: `a hug.session is persisted to localStorage within ${timeoutMs}ms`,
-    })
-    .toBe(true);
-  return (await readSession(page)) as StoredSnapSession;
+export async function readPersistedSession(page: Page): Promise<string | null> {
+  return await page.evaluate((key) => window.localStorage.getItem(key), LEGACY_SESSION_KEY);
 }
 
 /**
  * Read the non-secret post-hydrate session probe off `globalThis`
  * ({@link SESSION_PROBE}). Null when logged out or before hydrate.
  */
-export async function readSessionProbe(page: Page): Promise<StoredSnapSession | null> {
+export async function readSessionProbe(page: Page): Promise<ProbedSnapSession | null> {
   return await page.evaluate(
     (key) => (globalThis as Record<string, unknown>)[key] ?? null,
     SESSION_PROBE,
-  ) as StoredSnapSession | null;
+  ) as ProbedSnapSession | null;
 }
 
 /**
  * Poll until the cookie-custody session has hydrated (the probe carries a
- * roles[] array) and return it. expect.poll-based.
+ * roles[] array) and return it. expect.poll-based — the platform's wait idiom.
  */
 export async function waitForSessionProbeRoles(
   page: Page,
   timeoutMs = 10_000,
-): Promise<StoredSnapSession> {
+): Promise<ProbedSnapSession> {
   await expect
     .poll(async () => Array.isArray((await readSessionProbe(page))?.roles), {
       timeout: timeoutMs,
       message: `the in-memory session hydrates with a roles[] within ${timeoutMs}ms`,
     })
     .toBe(true);
-  return (await readSessionProbe(page)) as StoredSnapSession;
+  return (await readSessionProbe(page)) as ProbedSnapSession;
 }

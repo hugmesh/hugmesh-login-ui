@@ -485,26 +485,21 @@ describe('BffService', () => {
   });
 });
 
-// ── D6 cookie mode: Bearer dropped, credentials + CSRF on mutations ──────────
-describe('BffService (cookie mode)', () => {
+// ── httpOnly-cookie custody: no Bearer, credentials + CSRF on mutations ──────
+// The ONLY session model since login-ui #3 — there is no flag to flip any more,
+// so these run against the service exactly as it ships.
+describe('BffService (cookie custody: credentials + CSRF on mutations)', () => {
   let service: BffService;
   let httpMock: HttpTestingController;
   let fetchSpy: jasmine.Spy;
 
   beforeEach(() => {
-    localStorage.clear();
-    (globalThis as any).__HUG_SESSION_COOKIE_MODE__ = true;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [BffService, SessionService, ...HTTP] });
     service = TestBed.inject(BffService);
     TestBed.inject(SessionService);
     httpMock = TestBed.inject(HttpTestingController);
     fetchSpy = spyOn(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    delete (globalThis as any).__HUG_SESSION_COOKIE_MODE__;
-    localStorage.clear();
   });
 
   async function nextRequest(path: string): Promise<TestRequest> {

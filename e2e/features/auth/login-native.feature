@@ -31,7 +31,7 @@ Feature: Native login — username/password sign-in (ALLOW)
     Given a fresh browser context
     And the login view is shown
     When "alice@gmail.com" signs in with their username and password
-    Then the session is stored for the password provider
+    Then the session is held in memory for the password provider
     And the login view is no longer shown
 
   Scenario: an MFA-protected identity is challenged, then completes sign-in

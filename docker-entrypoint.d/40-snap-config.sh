@@ -14,15 +14,16 @@
 #
 # Env consumed (all optional):
 #   SNAP_BFF_URL            gateway/BFF origin the /bff/login POST targets  (default "")
-#   SNAP_SESSION_COOKIE_MODE true|1|yes|on => opaque-cookie session custody (default false)
-#   SNAP_OIDC_ENABLED        true|1|yes|on => session.service.ts's hydrate() re-reads
-#                            GET /bff/session after login instead of trusting the
-#                            client's own hardcoded roles:['user'] guess (default false).
-#                            Without this, oidcEnabled() is permanently false (the global
-#                            this script never emitted at all), so hydrate() short-circuits
-#                            and a real ROLE_ADMIN/ROLE_MOD/etc. grant never reaches the
-#                            session — every native-login principal is stuck showing only
-#                            the plain-user nav, no matter their actual Casdoor roles.
+#   SNAP_OIDC_ENABLED        true|1|yes|on => the host reports the OIDC login path as on
+#                            (default false). Cosmetic since login-ui #3: a session
+#                            hydrated on a reload is tagged provider 'oidc' instead of
+#                            the vestigial 'google'; it gates nothing else.
+#
+# RETIRED (login-ui #3): SNAP_SESSION_COOKIE_MODE. The app no longer has a
+# localStorage session mode to switch away from — the httpOnly `bff_` cookie is
+# the ONLY session custody, hydrated from GET /bff/session and never persisted —
+# so the `window.__HUG_SESSION_COOKIE_MODE__` global is no longer emitted and the
+# env var, if still set by an older compose/manifest, is ignored.
 #
 # Login BACKGROUND (see src/app/login-background.component.ts). Same contract as the
 # theme it reads its colours from: env + restart, never an image rebuild.
@@ -54,13 +55,8 @@ js_escape() {
   printf '%s' "${1:-}" | tr -d '\r\n' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
-# Both boolean flags are emitted UNQUOTED so the app's strict `=== true`
+# The boolean flags are emitted UNQUOTED so the app's strict `=== true`
 # comparisons work. Anything not affirmative stays false.
-case "$(printf '%s' "${SNAP_SESSION_COOKIE_MODE:-}" | tr 'A-Z' 'a-z')" in
-  1|true|yes|on) COOKIE_MODE=true ;;
-  *)             COOKIE_MODE=false ;;
-esac
-
 case "$(printf '%s' "${SNAP_OIDC_ENABLED:-}" | tr 'A-Z' 'a-z')" in
   1|true|yes|on) OIDC_ENABLED=true ;;
   *)             OIDC_ENABLED=false ;;
@@ -79,11 +75,10 @@ cat > "$OUT" <<EOF
 // GENERATED at container start by /docker-entrypoint.d/40-snap-config.sh from
 // environment variables — do NOT edit; this file is overwritten on restart.
 window.__HUG_BFF_URL__ = "${BFF_URL}";
-window.__HUG_SESSION_COOKIE_MODE__ = ${COOKIE_MODE};
 window.__HUG_OIDC_ENABLED__ = ${OIDC_ENABLED};
 window.__HUG_BG_EFFECT__ = "${BG_EFFECT}";
 window.__HUG_BG_IMAGE__ = "${BG_IMAGE}";
 window.__HUG_BG_PICKER__ = ${BG_PICKER};
 EOF
 
-echo "40-snap-config.sh: wrote $OUT (cookie mode=${COOKIE_MODE}, oidc enabled=${OIDC_ENABLED}, background=${SNAP_BG_EFFECT:-auto}, picker=${BG_PICKER})"
+echo "40-snap-config.sh: wrote $OUT (oidc enabled=${OIDC_ENABLED}, background=${SNAP_BG_EFFECT:-auto}, picker=${BG_PICKER})"

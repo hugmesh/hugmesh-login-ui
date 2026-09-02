@@ -12,8 +12,8 @@ export interface SnapSession {
   label: string;              // display (the signed-in username)
   // 'google' | 'discord' are vestigial — no code path mints them anymore (the
   // Google/Discord register flow was removed); kept for backward-compat typing
-  // of pre-existing persisted localStorage sessions and as a hydrate() fallback
-  // tag (see hydrate() below). New sessions are 'password' or 'oidc'.
+  // of the shape the host shell shares, and as a hydrate() fallback tag (see
+  // hydrate() below). New sessions are 'password' or 'oidc'.
   provider: 'google' | 'discord' | 'oidc' | 'password';
   roles: string[];
   registrationComplete: boolean;
@@ -31,157 +31,206 @@ const CFG = {
 /**
  * Non-secret post-hydrate session PROBE (`globalThis.__HUG_SESSION__`).
  *
- * In LEGACY localStorage mode the session's non-secret metadata is readable off
- * `localStorage['hug.session']`, so an offline e2e can assert the persona's
- * roles[] round-tripped faithfully. In OIDC/cookie-custody mode NOTHING is
- * persisted — the hydrated session lives ONLY in the in-memory signal — so there
- * is no web-storage surface an e2e can read the roles back from, and the
- * roles→signal mapping's end-to-end faithfulness (no drop, no up-case) is
- * otherwise unobservable outside the unit tests.
+ * Nothing about the session is persisted to web storage — the hydrated session
+ * lives ONLY in the in-memory signal — so there is no storage surface an e2e can
+ * read the roles back from, and the roles→signal mapping's end-to-end
+ * faithfulness (no drop, no up-case) would otherwise be unobservable outside the
+ * unit tests.
  *
  * This probe mirrors the SAME non-secret metadata the signal already holds
  * (id/label/provider/roles/registrationComplete) onto a host-injected-style
  * `__HUG_*` global whenever the signal changes, so a black-box test can read
- * the exact roles the UI carries post-hydrate. It is a strict SUBSET of the
- * legacy `hug.session` payload — it carries NO token (there is none: auth rides
- * in the httpOnly `bff_` cookie), so the persist-nothing/no-token custody
- * invariant is preserved (this is not web storage and holds no credential).
+ * the exact roles the UI carries post-hydrate. It carries NO token (there is
+ * none: auth rides in the httpOnly `bff_` cookie), so the persist-nothing/
+ * no-token custody invariant is preserved (this is not web storage and holds no
+ * credential).
  */
 const SESSION_PROBE = '__HUG_SESSION__';
 
-/**
- * D6 PER-UI COOKIE-MODE FLAG (ships DARK, default FALSE).
- *
- * The browser NEVER holds an admin-capable bearer: auth ALWAYS rides in the
- * httpOnly `bff_` cookie, which the gateway's BffCookieToBearerWebFilter turns
- * into the upstream bearer server-side. Every `/bff/*` call therefore sends
- * `credentials: 'include'` (the cookie) and NO `Authorization` header.
- *
- * This flag now only selects how the NON-SECRET session metadata
- * (id/label/provider/roles/registrationComplete) is held. When FALSE (the
- * default this remote SHIPS with) the metadata is persisted to `localStorage`
- * under `hug.session` and synced cross-tab via the `storage` event. When the
- * host flips `globalThis.__HUG_SESSION_COOKIE_MODE__ = true`, this remote runs
- * the MERGED httpOnly-cookie session (admin-bff D6 / #89): the metadata is NOT
- * persisted, the session is hydrated from `GET /bff/session` (credentials:
- * include), mutations echo the double-submit `X-CSRF-TOKEN` header, and logout
- * goes via `POST /bff/sessionOut`.
- */
-export function cookieModeEnabled(): boolean {
-  return (globalThis as any).__HUG_SESSION_COOKIE_MODE__ === true;
-}
-
-/** The double-submit CSRF header the cookie-mode admin-bff expects (matches
- *  `SecurityConfig.CSRF_HEADER`). The token rides in the JS-readable
- *  `XSRF-TOKEN` cookie (CookieServerCsrfTokenRepository.withHttpOnlyFalse). */
+/** The double-submit CSRF header the admin-bff expects on a MUTATING, non-cookie-
+ *  mint request (matches `SecurityConfig.CSRF_HEADER`). The token rides in the
+ *  JS-readable `XSRF-TOKEN` cookie (CookieServerCsrfTokenRepository.withHttpOnlyFalse). */
 const CSRF_HEADER = 'X-CSRF-TOKEN';
 const CSRF_COOKIE = 'XSRF-TOKEN';
 
-/** Holds the logged-in session and derives the Casdoor-style role flags + the
- *  registration-complete gate the host uses to unlock the Matrix/Mastodon
- *  micro-frontends.
+/**
+ * The CANONICAL session-change seam, used for BOTH transports:
+ *  • a same-document `window` event — the name every SessionService copy in the
+ *    fleet (host shell + remotes) listens on, so a write in this remote reaches
+ *    the host's nav/guards and vice versa;
+ *  • a `BroadcastChannel` of the same name — how sibling TABS learn that this tab
+ *    signed in or out (nothing is written to web storage, so there is no
+ *    `storage` event to ride on).
+ */
+const SESSION_CHANNEL = 'hug-session-change';
+
+/**
+ * The RETIRED localStorage mirror key. This service never reads or writes it
+ * (see the class doc). It survives here for ONE transport-only reason: the host
+ * shell and the not-yet-migrated remotes still write/remove the key on THEIR
+ * sign-in / status sync / sign-out and post on no BroadcastChannel, so a
+ * sibling tab's `storage` event for this key is the only signal that reaches
+ * this tab from them — see {@link SessionService.onLegacyMirrorStorage}.
+ */
+const LEGACY_MIRROR_KEY = 'hug.session';
+
+/**
+ * Holds the logged-in session and derives the Casdoor-style role flags + the
+ * registration-complete gate the host uses to unlock the Matrix/Mastodon
+ * micro-frontends.
  *
- *  Auth ALWAYS rides in the httpOnly `bff_` cookie (no browser bearer). The
- *  {@link cookieModeEnabled} flag only selects how the non-secret metadata is
- *  held (per-UI, ships dark):
- *   • localStorage mode (DEFAULT): metadata persisted to `hug.session`;
- *     cross-tab sync via the `storage` event.
- *   • cookie mode (#89): metadata NOT persisted; hydrated from `GET /bff/session`;
- *     cross-tab sync via BroadcastChannel re-hydrate (there is no localStorage
- *     write to raise a `storage` event). */
+ * SESSION CUSTODY — httpOnly cookie ONLY (login-ui #3). Auth rides in the
+ * httpOnly `bff_` cookie, which the gateway's BffCookieToBearerWebFilter turns
+ * into the upstream bearer server-side; every `/bff/*` call sends
+ * `credentials: 'include'` and NO `Authorization` header. The NON-SECRET session
+ * metadata (id/label/provider/roles/registrationComplete) is held in memory only:
+ *  • it is hydrated from `GET /bff/session` (credentials: include) — on every
+ *    entry into this remote ({@link ensureHydrated}, via the route guard) and
+ *    right after a sign-in;
+ *  • it is NEVER persisted to web storage (the former localStorage `hug.session`
+ *    mirror and its `__HUG_SESSION_COOKIE_MODE__` switch are gone — see
+ *    hugmesh-login-ui issue #3). This service neither reads nor removes a legacy
+ *    `hug.session` key that may still be in the browser: the host shell still
+ *    owns and re-reads that key on its own, and a removal here would raise a
+ *    `storage` event in every sibling tab's host instance — i.e. it would sign
+ *    them out visually while their cookie is live;
+ *  • mutations echo the double-submit `X-CSRF-TOKEN` header ({@link csrfHeader});
+ *  • logout goes via `POST /bff/sessionOut` and AWAITS it before dropping local
+ *    state ({@link clear}).
+ *
+ * CROSS-INSTANCE SYNC. The host shell and each federated remote hold their OWN
+ * SessionService instance over the same cookie, and a user may have several tabs:
+ *  • same document: a WRITE here dispatches {@link SESSION_CHANNEL} with the
+ *    session in `detail`; a sibling in-page instance of THIS service adopts it
+ *    without a re-read. A detail-LESS event on the same name (the host shell and
+ *    the other remotes dispatch a plain `Event`) means "the session may have
+ *    changed — ask the server", so it triggers an authoritative re-hydrate here
+ *    rather than being mistaken for "logged out";
+ *  • other tabs: only a WRITE of server state — a sign-in ({@link set}) or a
+ *    sign-out ({@link clear}) — posts on the channel; the receiving tab
+ *    re-hydrates from the cookie. A hydrate is a READ and never posts, otherwise
+ *    two tabs would re-hydrate each other forever. A sibling tab's `storage`
+ *    event for the legacy `hug.session` mirror (a host-shell sign-out there) is
+ *    treated as the same signal — re-hydrate, never read the value.
+ */
 @Injectable({ providedIn: 'root' })
 export class SessionService implements OnDestroy {
-  private readonly key = 'hug.session';
-  private readonly channel = 'hug-session-change';
-  /** Cross-tab channel used ONLY in cookie mode (localStorage `storage` events
-   *  cannot fire when nothing is written to localStorage). */
+  private readonly channel = SESSION_CHANNEL;
+  /** Cross-tab channel (nothing is written to web storage, so `storage` events
+   *  cannot fire; this is the only way another tab learns of a sign-in/out). */
   private readonly bc: BroadcastChannel | null;
   /** The generated, typed admin-bff client. `/bff/session` + `/bff/sessionOut` are
    *  CREDENTIALED calls, so both go out with {@link withBffCredentials} — the
    *  generated transport sends the httpOnly `bff_` cookie only when asked. */
   private readonly auth = inject(AuthControllerService);
-  readonly session = signal<SnapSession | null>(this.load());
+  /** Starts EMPTY: the cookie is the source of truth and is read via
+   *  {@link hydrate}, never from web storage. */
+  readonly session = signal<SnapSession | null>(null);
   readonly loggedIn = computed(() => this.session() !== null);
   readonly isAdmin = computed(() => (this.session()?.roles ?? []).includes('admin'));
   /** Matrix/Mastodon are usable only after full registration completes. */
   readonly fullyRegistered = computed(() => this.session()?.registrationComplete === true);
+  /** The bootstrap hydrate, memoised so every entry into the remote shares ONE
+   *  `/bff/session` read (see {@link ensureHydrated}). */
+  private bootstrapHydrate: Promise<SnapSession | null> | null = null;
+  /** Set by {@link ngOnDestroy}: a torn-down instance must neither act on nor
+   *  announce the result of a read that was still in flight. */
+  private destroyed = false;
+
+  /**
+   * Same-document session-change handler. A sibling in-page instance of THIS
+   * service carries the authoritative session in the event `detail` (a
+   * `SnapSession`, or `null` for a sign-out) — adopt it as-is, no re-read. A
+   * detail-LESS event is a foreign broadcaster (the host shell / the other
+   * remotes dispatch a plain `Event` after their own writes): the session MAY
+   * have changed, so ask the server rather than mistaking "no detail" for
+   * "no session" — that misreading would sign this remote out visually every
+   * time the host synced its account status.
+   *
+   * An arrow-function field (not a method) so the very same reference can be
+   * detached again in {@link ngOnDestroy}.
+   */
+  private readonly onSameDocumentChange = (ev: Event): void => {
+    const detail = (ev as CustomEvent<SnapSession | null | undefined>).detail;
+    if (detail === undefined) { void this.hydrate(); return; }
+    this.setSession(detail);
+  };
+
+  /**
+   * Compat bridge for the not-yet-migrated fleet (transport only, never
+   * custody). The host shell's `clear()` removes the legacy `hug.session`
+   * mirror and its status sync re-writes it; neither posts on the
+   * BroadcastChannel, so the `storage` event that write raises in every OTHER
+   * tab is the only way a host-shell sign-out over there reaches this tab. It
+   * is treated exactly like a channel message — "the server-side session may
+   * have changed, ask the cookie" — and the stored VALUE is never read. It
+   * cannot self-trigger: `storage` never fires in the writing document and this
+   * service never writes the key. Drop it once every consumer posts on the
+   * channel instead (hugmesh-login-ui #3 follow-ups).
+   */
+  private readonly onLegacyMirrorStorage = (e: StorageEvent): void => {
+    if (e.key === LEGACY_MIRROR_KEY) void this.hydrate();
+  };
 
   constructor() {
     // Pin the generated client to the host-provided BFF origin so the wire URL is
     // identical to the legacy `${__HUG_BFF_URL__}/bff/...` path (same pattern as
     // PublicAnnouncementsService / AppealContactService).
     this.auth.rootUrl = CFG.bff;
-    // Keep the non-secret probe in lockstep with the initial signal state so a
-    // black-box reader sees the roles even before any write (e.g. a legacy
-    // localStorage session loaded on construction).
+    // Keep the non-secret probe in lockstep with the (empty) initial signal state.
     this.publish(this.session());
-    // The host shell and each federated remote each hold their OWN SessionService
-    // instance over the same session state. Re-read on a same-document broadcast
-    // (dispatched by whichever instance wrote) and on cross-tab storage events, so
-    // every nav/guard reading this signal stays in sync — e.g. this login remote
-    // completing registration must unlock the host shell's Matrix/Mastodon nav.
-    this.bc = (cookieModeEnabled() && typeof BroadcastChannel !== 'undefined')
-      ? new BroadcastChannel(this.channel)
-      : null;
+    this.bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(this.channel) : null;
     if (typeof window !== 'undefined') {
-      if (cookieModeEnabled()) {
-        // Cookie mode: the writer carries the authoritative session in the
-        // same-document event detail so sibling in-page instances adopt it
-        // WITHOUT a re-read (load() is null in cookie mode — nothing persisted).
-        window.addEventListener(this.channel, (e) => this.adopt((e as CustomEvent).detail));
-        // Another TAB changed the session → re-hydrate from the BFF (the httpOnly
-        // cookie is the source of truth; nothing crosses tabs via localStorage).
-        if (this.bc) this.bc.onmessage = () => { void this.hydrate(); };
-      } else {
-        // localStorage mode (legacy, byte-identical): every in-page instance
-        // re-reads on the same-document broadcast, and cross-tab via `storage`.
-        window.addEventListener(this.channel, () => this.setSession(this.load()));
-        window.addEventListener('storage', (e) => { if (e.key === this.key) this.setSession(this.load()); });
-      }
+      window.addEventListener(this.channel, this.onSameDocumentChange);
+      // Another TAB signed in or out → re-hydrate from the BFF (the httpOnly
+      // cookie is the source of truth; nothing crosses tabs via web storage).
+      if (this.bc) this.bc.onmessage = () => { void this.hydrate(); };
+      window.addEventListener('storage', this.onLegacyMirrorStorage);
     }
   }
 
   /**
-   * Close the cross-tab channel when this injector is torn down (an unmounted
-   * federated remote, and every unit test's TestBed).
+   * Detach from every transport (same-document event, BroadcastChannel, the
+   * legacy-mirror `storage` bridge) when this injector is torn down (an
+   * unmounted federated remote, and every unit test's TestBed).
    *
-   * The channel's message handler RE-HYDRATES from `/bff/session`, so a dead
-   * instance left listening keeps issuing credentialed requests on an injector
-   * that no longer exists — and, because a failed re-hydrate calls clearLocal(),
-   * which broadcasts again, two such instances feed each other indefinitely.
-   * That was survivable while hydrate() used a raw `fetch` (each round-trip cost
-   * a real 404); once it moved onto the generated HttpClient client the failure
-   * became immediate and the loop tight enough to wedge the browser.
+   * The handlers RE-HYDRATE from `/bff/session` (or adopt a sibling's write),
+   * so a dead instance left listening would keep issuing credentialed requests
+   * on an injector that no longer exists — and, worse, ANNOUNCE what it read to
+   * the live instances (a dead copy's stale hydrate landing after a live sign-in
+   * would overwrite the live session's identity). {@link destroyed} makes an
+   * already in-flight read inert for the same reason.
    */
   ngOnDestroy(): void {
+    this.destroyed = true;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(this.channel, this.onSameDocumentChange);
+      window.removeEventListener('storage', this.onLegacyMirrorStorage);
+    }
     this.bc?.close();
   }
 
-  /** Cookie-mode same-document adopt: take the session another in-page instance
-   *  just wrote (carried in the broadcast detail) rather than re-reading nothing. */
-  private adopt(s: SnapSession | null): void {
-    this.setSession(s ?? null);
+  /**
+   * The ONE bootstrap hydrate for this instance: the session is not persisted,
+   * so a fresh document (a reload, a deep link to `/login/appeal`, a lazily
+   * mounted remote) learns whether the browser holds a live cookie only by
+   * asking `GET /bff/session`. Memoised — repeated route activations share the
+   * same read; later changes arrive through {@link set}/{@link clear} and the
+   * broadcasts. Never blocks rendering: callers fire-and-forget it and the
+   * signal-driven views update when it resolves.
+   */
+  ensureHydrated(): Promise<SnapSession | null> {
+    this.bootstrapHydrate ??= this.hydrate();
+    return this.bootstrapHydrate;
   }
 
   /** The SINGLE place the session signal is written. Also mirrors the non-secret
    *  metadata onto the {@link SESSION_PROBE} global so a black-box e2e can read
-   *  the post-hydrate roles even in cookie/OIDC mode (nothing is persisted to web
-   *  storage there — the signal is the only source of truth). */
+   *  the post-hydrate roles (nothing is persisted to web storage — the signal is
+   *  the only source of truth). */
   private setSession(s: SnapSession | null): void {
     this.session.set(s);
     this.publish(s);
-  }
-
-  /** Drop to logged-out, clearing any PERSISTED session too (unlike bare
-   *  {@link setSession}(null), which only touches the in-memory signal) —
-   *  hydrate()'s "no longer valid" paths (401 / network error). Deliberately
-   *  does NOT hit {@code /bff/sessionOut} like {@link clear} does: a failed
-   *  re-hydrate means the cookie is ALREADY gone/invalid server-side, not an
-   *  active sign-out, so firing that request would be pointless. */
-  private clearLocal(): void {
-    if (!cookieModeEnabled()) localStorage.removeItem(this.key);
-    this.setSession(null);
-    this.broadcast();
   }
 
   /** Mirror the session's NON-SECRET metadata (never a token) onto the
@@ -199,66 +248,69 @@ export class SessionService implements OnDestroy {
       : null;
   }
 
-  /** Initial in-memory state. localStorage mode reads the persisted session;
-   *  cookie mode starts EMPTY (the caller hydrates from `GET /bff/session`). */
-  private load(): SnapSession | null {
-    if (cookieModeEnabled()) return null;
-    try { const raw = localStorage.getItem(this.key); return raw ? JSON.parse(raw) : null; }
-    catch { return null; }
-  }
-
+  /** Reflect a just-established session (a sign-in wrote the cookie). In-memory
+   *  only; tells the in-page siblings AND the other tabs. */
   set(s: SnapSession): void {
-    if (!cookieModeEnabled()) localStorage.setItem(this.key, JSON.stringify(s));
     this.setSession(s);
-    this.broadcast();
+    this.notifySiblings();
+    this.notifyTabs();
   }
   patch(p: Partial<SnapSession>): void { const s = this.session(); if (s) this.set({ ...s, ...p }); }
 
-  /** Sign out. Auth lives in the httpOnly `bff_` cookie in EVERY mode, so logout
-   *  must hit the real endpoint to delete the server session + expire the cookie
-   *  (dropping local state alone would leave the browser still authenticated).
-   *  In legacy mode it also removes the persisted metadata. Both broadcast so
-   *  every in-page instance + sibling tab drops to logged-out. */
-  clear(): void {
-    // Best-effort: clear local state regardless of whether the call succeeds
-    // (the cookie may already be gone). The CSRF token is exempt for
-    // /bff/sessionOut server-side, but we still send credentials. Fire-and-forget,
-    // so BOTH outcomes are swallowed — HttpClient errors on a non-2xx where the
-    // former `fetch` merely resolved, and neither must block the local clear.
-    this.auth.authSessionOut({}, withBffCredentials(this.csrfHeader()))
-      .subscribe({ next: () => undefined, error: () => undefined });
-    if (!cookieModeEnabled()) localStorage.removeItem(this.key);
+  /**
+   * Sign out. EXPIRES THE SERVER SESSION FIRST, and AWAITS it.
+   *
+   * Auth lives in the httpOnly `bff_` cookie, so logout must hit the real
+   * endpoint (`POST /bff/sessionOut` deletes the server session + expires the
+   * cookie); dropping local state alone would leave the browser authenticated.
+   * The ORDER is the contract: every notification below makes a sibling tab (and
+   * the host shell's in-page instance) re-read `/bff/session` — fired before the
+   * cookie is dead, that re-read gets a 200 and puts the session straight back
+   * (the "sign-out did not sign out" defect the host shell fixed in its own copy).
+   * Best-effort on the RESULT only: an already-dead cookie 401s and an offline
+   * browser throws — neither may strand the user signed-in locally.
+   */
+  async clear(): Promise<void> {
+    try {
+      // The CSRF token is exempt for /bff/sessionOut server-side (a cookie-mint
+      // endpoint), but we still send the credentials. HttpClient ERRORS on a
+      // non-2xx; the catch swallows it — the local sign-out happens regardless.
+      await firstValueFrom(this.auth.authSessionOut({}, withBffCredentials(this.csrfHeader())));
+    } catch {
+      // Deliberately swallowed — local sign-out must still happen when the
+      // network is down or the cookie was already gone.
+    }
+    if (this.destroyed) return;
     this.setSession(null);
-    this.broadcast();
+    this.notifySiblings();
+    this.notifyTabs();
   }
 
   /**
-   * COOKIE / OIDC MODE: hydrate the session from `GET /bff/session` (credentials:
-   * include) — the httpOnly `bff_` cookie carries auth, so the UI cannot read the
-   * token from JS and learns {roles, registrationComplete, mfaSatisfied} from
-   * this endpoint. A non-OK response means "not logged in" → drop to null. In
-   * localStorage mode (cookie mode AND OIDC both off) this is a NO-OP (the
-   * persisted session is authoritative).
+   * Hydrate the session from `GET /bff/session` (credentials: include) — the
+   * httpOnly `bff_` cookie carries auth, so the UI cannot read the token from JS
+   * and learns {roles, registrationComplete, mfaSatisfied} from this endpoint. A
+   * non-OK response means "not logged in" → drop to null.
    *
-   * The OIDC login path (PR-4) shares the same custody model — the browser holds
-   * ONLY the opaque `bff_` cookie — so an OIDC sign-in hydrates here too, even if
-   * the per-UI cookie-mode flag is off ({@link oidcSessionMode}).
+   * Called right after a sign-in (bff.service.ts — the server's REAL roles must
+   * replace the hardcoded `roles: ['user']` guess login() writes first, or a
+   * mod/admin/superadmin looks like a plain user to every role-gated consumer;
+   * operator report 2026-08-14), on every entry into the remote
+   * ({@link ensureHydrated}), and whenever another tab or a foreign in-page
+   * broadcaster reports a change.
    *
    * The hydrated session carries NO token (auth rides in the cookie); the
-   * id/label/provider are not exposed by `/bff/session`, so they are left
-   * blank — the cookie session is identified server-side, not by these fields.
+   * id/label/provider are not exposed by `/bff/session`, so whatever identity
+   * the CALLER already established is kept (login() sets label=<username>,
+   * which the shell renders in its nav) — only the server-owned fields are
+   * authoritative here.
+   *
+   * A hydrate is a READ: it reflects the result in-page (siblings adopt the
+   * detail) but NEVER posts on the cross-tab channel — the receiving tab's
+   * handler is itself a hydrate, so posting here would ping-pong `/bff/session`
+   * between tabs forever.
    */
   async hydrate(): Promise<SnapSession | null> {
-    // EVERY mode hydrates. localStorage mode used to return early here, which
-    // stranded the hardcoded `roles: ['user']` guess that login() writes before
-    // this call (bff.service.ts): the server's REAL roles never reached storage,
-    // so a mod/admin/superadmin looked like a plain user to every consumer of
-    // `hug.session`. Live consequence (operator report 2026-08-14): /mod's
-    // canActivate guard read roles:['user'], denied its own moderator, and
-    // redirected to a '/login' route that does not exist INSIDE the mounted
-    // remote — NG04002, blank screen, "no clear way to administer matrix
-    // mastodon". Auth custody is unchanged: /bff/session is cookie-authenticated
-    // and returns NO token, only non-secret role/registration metadata.
     try {
       // A non-OK /bff/session used to be read off `r.ok`; the generated client
       // ERRORS on it instead, so both "not logged in" paths land in the catch.
@@ -269,64 +321,39 @@ export class SessionService implements OnDestroy {
           map((body) => body as unknown as { roles?: string[]; registrationComplete?: boolean }),
         ),
       );
+      if (this.destroyed) return null; // torn down while the read was in flight
       const prior = this.session();
       const s: SnapSession = {
-        // The cookie session is identified server-side, so there is no real
-        // client-known id/label/provider to report here. Tag 'oidc' only for the
-        // client-side-OIDC-without-cookie-mode case; the other branch (plain
-        // cookie mode, i.e. every native /bff/login today) falls back to the
-        // vestigial 'google' placeholder — no UI logic reads this value (see the
-        // SnapSession.provider comment), so the tag itself is not load-bearing.
-        // Keep whatever identity the CALLER already established (localStorage
-        // mode's login() sets label=<username>, which the shell renders in its
-        // nav). Only the server-owned fields below are authoritative here —
-        // blanking the label would log the user out of their own name.
         id: prior?.id ?? '',
         label: prior?.label ?? '',
-        provider: prior?.provider
-          ?? (oidcEnabled() && !cookieModeEnabled() ? 'oidc' : 'google'),
+        // No caller-established identity (a bootstrap hydrate of a live cookie):
+        // tag 'oidc' when the host says the OIDC login path is on, else the
+        // vestigial 'google' placeholder — no UI logic reads this value (see the
+        // SnapSession.provider comment), so the tag itself is not load-bearing.
+        provider: prior?.provider ?? (oidcEnabled() ? 'oidc' : 'google'),
         roles: data.roles ?? ['user'],
         registrationComplete: !!data.registrationComplete,
       };
-      // Use the PUBLIC set() (not the private setSession()) so a real OIDC
-      // role grant (admin/mod/superadmin/etc, synced server-side on every
-      // native login) actually reaches localStorage — not just this page's
-      // in-memory signal. Without this, the initial hardcoded roles:['user']
-      // guess set at login time (before this fetch resolves) NEVER gets
-      // corrected in storage. The host shell has its OWN separate
-      // SessionService instance (a different Angular bundle) — its
-      // same-document/storage-event listeners both just RE-READ localStorage
-      // (this.session.set(this.load())), they don't receive this remote's
-      // in-memory signal or this fetch's result directly — so without this
-      // write it keeps showing the stale "plain user" nav forever, no matter
-      // the account's real Casdoor roles. (Only genuine cookie-mode, where
-      // cross-instance sync goes over BroadcastChannel instead of storage,
-      // should skip the write — set() already gates that correctly.)
-      this.set(s);
+      this.setSession(s);
+      this.notifySiblings();
       return s;
     } catch {
-      this.clearLocal();
+      // The cookie is gone/invalid server-side (401) or unreachable: drop to
+      // logged-out locally. Deliberately NOT /bff/sessionOut (nothing to expire)
+      // and NOT a cross-tab post (see above) — in-page siblings adopt the null.
+      if (this.destroyed) return null;
+      this.setSession(null);
+      this.notifySiblings();
       return null;
     }
   }
 
-  /** Whether this remote is running in the merged httpOnly-cookie session mode. */
-  get cookieMode(): boolean { return cookieModeEnabled(); }
-
-  /**
-   * Whether the OIDC login path is active. When OIDC ships (PR-4), the browser
-   * holds ONLY the opaque `bff_` session cookie — exactly the cookie-mode custody
-   * model — so the OIDC callback must use {@link hydrate} semantics EVEN IF
-   * `__HUG_SESSION_COOKIE_MODE__` is false. Mirrors {@code cookieMode} so
-   * callers can treat "OIDC on" as "cookie session, never persist metadata". */
-  get oidcSessionMode(): boolean { return oidcEnabled(); }
-
-  /** The double-submit CSRF header for cookie-mode MUTATING requests. Reads the
-   *  JS-readable `XSRF-TOKEN` cookie and echoes it as `X-CSRF-TOKEN`. Empty (no
-   *  header) in localStorage mode or before a token cookie exists — the
-   *  admin-bff require-matcher exempts the Bearer/cookie-mint paths anyway. */
+  /** The double-submit CSRF header for MUTATING, non-cookie-mint requests. Reads
+   *  the JS-readable `XSRF-TOKEN` cookie and echoes it as `X-CSRF-TOKEN`. Empty
+   *  (no header) before a token cookie exists — the admin-bff require-matcher
+   *  exempts the cookie-mint paths anyway. */
   csrfHeader(): Record<string, string> {
-    if (!cookieModeEnabled() || typeof document === 'undefined') return {};
+    if (typeof document === 'undefined') return {};
     const token = this.readCookie(CSRF_COOKIE);
     return token ? { [CSRF_HEADER]: token } : {};
   }
@@ -340,18 +367,17 @@ export class SessionService implements OnDestroy {
     return null;
   }
 
-  /** Notify the other in-page SessionService instances (host + remotes) to
-   *  re-read, AND in cookie mode notify sibling tabs to re-hydrate. */
-  private broadcast(): void {
-    if (typeof window !== 'undefined') {
-      // Cookie mode carries the just-written session in the detail (so sibling
-      // in-page instances adopt it directly); legacy mode uses a plain Event and
-      // the listeners re-read localStorage.
-      const ev = cookieModeEnabled()
-        ? new CustomEvent(this.channel, { detail: this.session() })
-        : new Event(this.channel);
-      window.dispatchEvent(ev);
-    }
-    if (this.bc) this.bc.postMessage('changed');
+  /** Same-document: hand the just-written session (or null) to the other in-page
+   *  SessionService instances — sibling copies of this service adopt the detail
+   *  directly; the host shell's listener re-hydrates on any event on this name. */
+  private notifySiblings(): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent(this.channel, { detail: this.session() }));
+  }
+
+  /** Cross-tab: tell sibling tabs the server-side session changed (sign-in or
+   *  sign-out) so they re-hydrate from the cookie. WRITES only — never a read. */
+  private notifyTabs(): void {
+    this.bc?.postMessage('changed');
   }
 }

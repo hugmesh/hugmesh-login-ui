@@ -165,10 +165,12 @@ describe('MfaService', () => {
   });
 
   it('omits the Authorization header when there is no session (cookie-only path still works)', async () => {
-    // clear() itself fires POST /bff/sessionOut (since #35); drain it first so the
+    // clear() AWAITS POST /bff/sessionOut before dropping local state (the
+    // sign-out order contract); answer it so the local sign-out lands, then the
     // assertion below reads the /bff/mfa/factors request under test.
-    session.clear();
+    const signedOut = session.clear();
     httpMock.expectOne((r) => r.url.includes('/bff/sessionOut')).flush({});
+    await signedOut;
 
     const p = service.factors();
     const req = expectCall('/bff/mfa/factors');
@@ -180,14 +182,15 @@ describe('MfaService', () => {
   });
 });
 
-// ── cookie mode: the double-submit CSRF header on MUTATING calls only ────────
-describe('MfaService (cookie mode)', () => {
+// ── the double-submit CSRF header on MUTATING calls only ─────────────────────
+// Cookie custody is the ONLY session model since login-ui #3 (no flag to flip),
+// so this is simply how the service ships: the header rides whenever the
+// JS-readable XSRF-TOKEN cookie exists and the call mutates.
+describe('MfaService (CSRF double-submit on mutations)', () => {
   let service: MfaService;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    localStorage.clear();
-    (globalThis as any).__HUG_SESSION_COOKIE_MODE__ = true;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [MfaService, SessionService, provideHttpClient(), provideHttpClientTesting()],
@@ -195,11 +198,6 @@ describe('MfaService (cookie mode)', () => {
     service = TestBed.inject(MfaService);
     httpMock = TestBed.inject(HttpTestingController);
     spyOnProperty(document, 'cookie', 'get').and.returnValue('XSRF-TOKEN=tok-123');
-  });
-
-  afterEach(() => {
-    delete (globalThis as any).__HUG_SESSION_COOKIE_MODE__;
-    localStorage.clear();
   });
 
   it('echoes X-CSRF-TOKEN on a mutating call (these are NOT cookie-mint endpoints)', async () => {

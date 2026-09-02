@@ -21,6 +21,7 @@ import '@angular/localize/init';
 
 import { Routes } from '@angular/router';
 import { localeGuard } from './i18n/locale.guard';
+import { sessionHydrateGuard } from './session-hydrate.guard';
 import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
 import { ForgotPasswordComponent } from './forgot-password.component';
@@ -103,7 +104,14 @@ const ROUTES: Routes = [
  * (not `canActivate`) is deliberate: it runs during route MATCHING, the earliest
  * hook available, and it is the one that also covers a child that might later be
  * lazily loaded. The guard always returns true — it never gates access.
+ *
+ * The parent ALSO carries {@link sessionHydrateGuard} (`canActivate`, after the
+ * catalog is in): the session lives in memory only (httpOnly-cookie custody,
+ * login-ui #3), so every entry into the remote kicks off the ONE
+ * `GET /bff/session` read that tells a fresh document whether the browser holds
+ * a live cookie. It never waits on that read and always returns true — the
+ * forgot-password route in particular must stay reachable with no session at all.
  */
 export const LOGIN_ROUTES: Routes = [
-  { path: '', canMatch: [localeGuard], children: ROUTES },
+  { path: '', canMatch: [localeGuard], canActivate: [sessionHydrateGuard], children: ROUTES },
 ];

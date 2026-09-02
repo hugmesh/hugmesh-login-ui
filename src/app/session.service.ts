@@ -65,6 +65,16 @@ const CSRF_COOKIE = 'XSRF-TOKEN';
 const SESSION_CHANNEL = 'hug-session-change';
 
 /**
+ * The RETIRED localStorage mirror key. This service never reads or writes it
+ * (see the class doc). It survives here for ONE transport-only reason: the host
+ * shell and the not-yet-migrated remotes still write/remove the key on THEIR
+ * sign-in / status sync / sign-out and post on no BroadcastChannel, so a
+ * sibling tab's `storage` event for this key is the only signal that reaches
+ * this tab from them — see {@link SessionService.onLegacyMirrorStorage}.
+ */
+const LEGACY_MIRROR_KEY = 'hug.session';
+
+/**
  * Holds the logged-in session and derives the Casdoor-style role flags + the
  * registration-complete gate the host uses to unlock the Matrix/Mastodon
  * micro-frontends.
@@ -99,7 +109,9 @@ const SESSION_CHANNEL = 'hug-session-change';
  *  • other tabs: only a WRITE of server state — a sign-in ({@link set}) or a
  *    sign-out ({@link clear}) — posts on the channel; the receiving tab
  *    re-hydrates from the cookie. A hydrate is a READ and never posts, otherwise
- *    two tabs would re-hydrate each other forever.
+ *    two tabs would re-hydrate each other forever. A sibling tab's `storage`
+ *    event for the legacy `hug.session` mirror (a host-shell sign-out there) is
+ *    treated as the same signal — re-hydrate, never read the value.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionService implements OnDestroy {
@@ -144,6 +156,22 @@ export class SessionService implements OnDestroy {
     this.setSession(detail);
   };
 
+  /**
+   * Compat bridge for the not-yet-migrated fleet (transport only, never
+   * custody). The host shell's `clear()` removes the legacy `hug.session`
+   * mirror and its status sync re-writes it; neither posts on the
+   * BroadcastChannel, so the `storage` event that write raises in every OTHER
+   * tab is the only way a host-shell sign-out over there reaches this tab. It
+   * is treated exactly like a channel message — "the server-side session may
+   * have changed, ask the cookie" — and the stored VALUE is never read. It
+   * cannot self-trigger: `storage` never fires in the writing document and this
+   * service never writes the key. Drop it once every consumer posts on the
+   * channel instead (hugmesh-login-ui #3 follow-ups).
+   */
+  private readonly onLegacyMirrorStorage = (e: StorageEvent): void => {
+    if (e.key === LEGACY_MIRROR_KEY) void this.hydrate();
+  };
+
   constructor() {
     // Pin the generated client to the host-provided BFF origin so the wire URL is
     // identical to the legacy `${__HUG_BFF_URL__}/bff/...` path (same pattern as
@@ -157,14 +185,16 @@ export class SessionService implements OnDestroy {
       // Another TAB signed in or out → re-hydrate from the BFF (the httpOnly
       // cookie is the source of truth; nothing crosses tabs via web storage).
       if (this.bc) this.bc.onmessage = () => { void this.hydrate(); };
+      window.addEventListener('storage', this.onLegacyMirrorStorage);
     }
   }
 
   /**
-   * Detach from both transports when this injector is torn down (an unmounted
-   * federated remote, and every unit test's TestBed).
+   * Detach from every transport (same-document event, BroadcastChannel, the
+   * legacy-mirror `storage` bridge) when this injector is torn down (an
+   * unmounted federated remote, and every unit test's TestBed).
    *
-   * Both handlers RE-HYDRATE from `/bff/session` (or adopt a sibling's write),
+   * The handlers RE-HYDRATE from `/bff/session` (or adopt a sibling's write),
    * so a dead instance left listening would keep issuing credentialed requests
    * on an injector that no longer exists — and, worse, ANNOUNCE what it read to
    * the live instances (a dead copy's stale hydrate landing after a live sign-in
@@ -173,7 +203,10 @@ export class SessionService implements OnDestroy {
    */
   ngOnDestroy(): void {
     this.destroyed = true;
-    if (typeof window !== 'undefined') window.removeEventListener(this.channel, this.onSameDocumentChange);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(this.channel, this.onSameDocumentChange);
+      window.removeEventListener('storage', this.onLegacyMirrorStorage);
+    }
     this.bc?.close();
   }
 

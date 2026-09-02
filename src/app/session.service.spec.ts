@@ -271,6 +271,24 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     }
   });
 
+  it("re-hydrates on a sibling tab's `storage` event for the legacy hug.session mirror (a host-shell sign-out there) without reading the value", async () => {
+    // The host shell's clear() removes the mirror and posts on no channel, so
+    // the `storage` event it raises in OTHER tabs is the only signal that
+    // reaches this tab. Transport only: the value is never read.
+    const getItem = spyOn(Storage.prototype, 'getItem').and.callThrough();
+    svc.set(makeSession({ label: 'kept' }));
+    window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, oldValue: '{"stale":true}', newValue: null }));
+    const reads = sessionReads();
+    expect(reads.length).toBe(1);
+    expect(reads[0].request.withCredentials).toBeTrue();
+    reads[0].flush(null, { status: 401, statusText: 'Unauthorized' });
+    await until(() => svc.session() === null, 'the sign-out reaching this tab');
+    expect(getItem).not.toHaveBeenCalled();
+    // An unrelated key (the locale preference) is not a session signal.
+    window.dispatchEvent(new StorageEvent('storage', { key: 'snap.login.lang', newValue: 'de' }));
+    expect(sessionReads().length).toBe(0);
+  });
+
   // ── clear(): sign-out order ─────────────────────────────────────────────
 
   it('clear() awaits POST /bff/sessionOut BEFORE dropping local state or notifying anyone', async () => {
@@ -370,8 +388,9 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     window.addEventListener(CHANNEL, listener);
     try {
       svc.ngOnDestroy();
-      // Inbound: neither transport reaches the dead instance any more.
+      // Inbound: no transport reaches the dead instance any more.
       window.dispatchEvent(new Event(CHANNEL));
+      window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, newValue: null }));
       expect(sessionReads().length).toBe(0);
       seen.length = 0; // (that plain Event of ours was recorded too)
       // Outbound: the read that was already in flight resolves to nothing and

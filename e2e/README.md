@@ -14,8 +14,10 @@ in `tests/helpers/roles.ts`. `bddgen` compiles the features into specs below
   `appeal-contact.feature`, `appeal-submit.feature` (the "signed-in" precondition
   is a mocked `GET /bff/session` — the session is the httpOnly cookie and nothing
   else, so there is no storage to seed), `session-cookie.feature` (in-memory
-  cookie custody: nothing persisted, the server's roles hydrated, and a second
-  tab re-hydrating over the broadcast channel without a storm), `mfa-enroll.feature`,
+  cookie custody: nothing persisted, the server's roles hydrated, a second tab
+  re-hydrating over the broadcast channel without a storm, a cross-tab sign-out
+  that expires the cookie before announcing it, and a not-yet-migrated host
+  shell's `hug.session` mirror removal still reaching this tab), `mfa-enroll.feature`,
   `mfa-challenge.feature`, `mfa-security.feature`, `login-blocked.feature`
   (banned/suspended → appeal auto-route), `login-local-roles.feature`
   (passwordless Studio role picker), `login-banner.feature` (public

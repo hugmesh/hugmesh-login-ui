@@ -21,6 +21,7 @@
 import { expect, Page } from '@playwright/test';
 import { Given, When, Then } from '../support/fixtures';
 import {
+  LEGACY_SESSION_KEY,
   ensureLoginFormReady,
   readPersistedSession,
   readSessionProbe,
@@ -137,6 +138,45 @@ When('the second tab signs out, expiring the cookie server-side before announcin
   await expect.poll(() => server.sessionReads, { message: 'the announced sign-out made this tab re-read /bff/session' }).toBeGreaterThan(before);
 });
 
+When(
+  'a not-yet-migrated host shell in the second tab signs out the legacy way, over the hug.session mirror alone',
+  async ({ page }) => {
+    // The rest of the fleet has NOT migrated: hugmesh-host-shell's SessionService
+    // owns a localStorage `hug.session` mirror, holds NO BroadcastChannel at all,
+    // and its own `storage` handler only sets its signal (it re-broadcasts
+    // nothing same-document). So when a shell signs out in ANOTHER tab, the only
+    // signal that can cross to this remote is the `storage` event its mirror
+    // write raises. This step drives exactly that shell shape in the second tab
+    // — no channel post anywhere — and the tab under test runs the real
+    // SessionService.
+    const tab = secondTab();
+    const mirrored = server.sessionReads;
+    // 1. the shell mirrors the session on ITS sign-in (the `storage` event this
+    //    raises here is a live-cookie hydrate: nothing changes).
+    await tab.evaluate((key) => {
+      localStorage.setItem(key, JSON.stringify({
+        id: 'shell-user', label: 'shell-user', provider: 'password',
+        roles: ['user'], registrationComplete: false,
+      }));
+    }, LEGACY_SESSION_KEY);
+    await expect
+      .poll(() => server.sessionReads, { message: 'the mirror write reached this tab as a live-cookie hydrate' })
+      .toBeGreaterThan(mirrored);
+    expect(await readSessionProbe(page)).not.toBeNull();
+
+    // 2. the shell's clear(): expire the cookie FIRST, then drop the mirror.
+    const before = server.sessionReads;
+    await tab.evaluate(async (key) => {
+      await fetch('/bff/sessionOut', { method: 'POST', credentials: 'include' });
+      localStorage.removeItem(key);
+    }, LEGACY_SESSION_KEY);
+    expect(server.cookieMinted).toBe(false);
+    await expect
+      .poll(() => server.sessionReads, { message: 'the mirror removal made this tab re-read /bff/session' })
+      .toBeGreaterThan(before);
+  },
+);
+
 // ─── Thens ──────────────────────────────────────────────────────────────────
 
 Then('this tab drops to no session over the broadcast channel', async ({ page }) => {
@@ -178,4 +218,14 @@ Then('nothing is persisted to web storage', async ({ page }) => {
   expect(await readPersistedSession(page)).toBeNull();
   const tab = pageRegistry.get(SECOND_TAB);
   if (tab) expect(await readPersistedSession(tab)).toBeNull();
+});
+
+
+Then('this tab drops to no session over the legacy storage mirror', async ({ page }) => {
+  // Nothing posted on the BroadcastChannel in that scenario — reaching anonymous
+  // here IS the legacy-mirror bridge working (mutation-checked: detaching the
+  // `storage` listener fails this scenario and nothing else in the file).
+  await expect
+    .poll(async () => await readSessionProbe(page), { message: 'the legacy sign-out reaches this tab' })
+    .toBeNull();
 });

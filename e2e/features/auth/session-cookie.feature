@@ -59,3 +59,13 @@ Feature: Cookie-custody session — in memory only, hydrated from /bff/session, 
     When the second tab signs out, expiring the cookie server-side before announcing it
     Then this tab drops to no session over the broadcast channel
     And nothing is persisted to web storage
+
+  Scenario: a legacy-mirror sign-out in a not-yet-migrated tab still reaches this tab
+    Given a fresh browser context
+    And the BFF mints a session cookie for "role-mod@gmail.com" with an incomplete registration
+    And a second tab is open on the login view
+    And the login view is shown
+    When "role-mod@gmail.com" signs in with their username and password
+    Then the complete-registration gate is shown
+    When a not-yet-migrated host shell in the second tab signs out the legacy way, over the hug.session mirror alone
+    Then this tab drops to no session over the legacy storage mirror

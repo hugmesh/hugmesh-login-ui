@@ -135,13 +135,10 @@ export class BffService {
    * bearer: auth rides in the httpOnly `bff_` cookie (sent via {@link creds}),
    * which the gateway turns into the upstream bearer server-side. So there is NO
    * `Authorization` header — only the double-submit `X-CSRF-TOKEN` on a MUTATING,
-   * non-cookie-mint request (in cookie mode, where the require-matcher enforces it).
+   * non-cookie-mint request (where the admin-bff require-matcher enforces it).
    */
   private authHeaders(mutating = false): Record<string, string> {
-    if (this.session.cookieMode) {
-      return mutating ? this.session.csrfHeader() : {};
-    }
-    return {};
+    return mutating ? this.session.csrfHeader() : {};
   }
 
   /** Init for the two COOKIE-MINT sign-in fetches ({@link login} /
@@ -270,8 +267,8 @@ export class BffService {
       registrationComplete: !!data.registrationComplete,
     };
     this.session.set(s);
-    // Enrich roles from the server session where the cookie-custody model exposes
-    // them (GET /bff/session). A no-op in legacy localStorage mode.
+    // Replace the roles guess above with the server's real ones (GET /bff/session,
+    // cookie-authenticated) before anything role-gated reads the session.
     await this.session.hydrate();
     if (this.session.fullyRegistered()) await this.provisionServiceTokens();
     return { ok: true, registrationComplete: !!data.registrationComplete, status: data.status };

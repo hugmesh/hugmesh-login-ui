@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { LOGIN_ROUTES } from './login.routes';
 import { localeGuard } from './i18n/locale.guard';
+import { sessionHydrateGuard } from './session-hydrate.guard';
 import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
 import { ForgotPasswordComponent } from './forgot-password.component';
@@ -41,6 +42,14 @@ describe('LOGIN_ROUTES (exposed ./routes federation contract)', () => {
     // escaped the wrapper would render untranslated with no error at all.
     expect(LOGIN_ROUTES[0].canMatch).toEqual([localeGuard]);
     expect(LOGIN_ROUTES.every((r) => r.component === undefined)).toBe(true);
+  });
+
+  it('kicks off the bootstrap session hydrate on every entry (non-gating canActivate on the parent)', () => {
+    // Cookie custody holds the session in memory only, so a fresh document must
+    // ask /bff/session; the parent is the one place that covers all six routes.
+    // It is a canActivate (the catalog must already be in) and, like the locale
+    // loader, it always answers true — it is a hook, not a gate.
+    expect(LOGIN_ROUTES[0].canActivate).toEqual([sessionHydrateGuard]);
   });
 
   it('exposes the LoginComponent at the empty path (default mount point)', () => {

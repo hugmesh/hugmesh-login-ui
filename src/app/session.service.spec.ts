@@ -4,9 +4,18 @@ import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@a
 import { SessionService, SnapSession } from './session.service';
 
 /**
- * httpOnly-cookie custody is the ONLY session model (login-ui #3): the former
- * localStorage `hug.session` mirror and its `__HUG_SESSION_COOKIE_MODE__` switch
- * are gone, so this suite runs against the service exactly as it ships.
+ * httpOnly-cookie custody is the ONLY session model (login-ui #3): the
+ * localStorage session MODE and its `__HUG_SESSION_COOKIE_MODE__` switch are
+ * gone, so this suite runs against the service exactly as it ships.
+ *
+ * Custody and TRANSPORT are separate, and both are pinned here. The `hug.session`
+ * localStorage key is still PUBLISHED — a non-secret projection for the eleven
+ * sibling remotes that still read their whole session from it and never call
+ * `/bff/session` — but it is never AUTHORITATIVE: the signal starts null, only a
+ * 2xx `/bff/session` can fill it, roles/registrationComplete always come from
+ * that read, and a sign-out (or an answered 401) removes the key. The suite
+ * asserts both halves: a forged mirror grants nothing, and a real sign-in
+ * reaches the mirror with the server's roles.
  *
  * `/bff/session` + `/bff/sessionOut` go through the generated, typed
  * AuthControllerService (Angular {@code HttpClient}), so the suite drives them
@@ -83,25 +92,72 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(sessionReads().length).toBe(0); // construction alone issues no read
   });
 
-  it('ignores a legacy localStorage hug.session: never read on construction, and never removed', () => {
-    localStorage.setItem(LEGACY_KEY, JSON.stringify(makeSession({ label: 'stale-mirror' })));
+  it('NEVER seeds itself from the hug.session mirror: a forged one grants no session and no role', () => {
+    // The whole point of #3: web storage is not custody. A mirror claiming
+    // admin must not make this service logged in, let alone an admin — only a
+    // 2xx /bff/session can, and it is the sole source of roles.
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(makeSession({ label: 'forged', roles: ['admin', 'superadmin'] })));
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     const fresh = TestBed.inject(SessionService);
     expect(fresh.session()).toBeNull();
-    // NOT purged either: the host shell still owns and re-reads that key, and a
-    // removal here would raise a `storage` event in every sibling tab's host —
-    // signing them out visually while their cookie is live.
-    expect(localStorage.getItem(LEGACY_KEY)).not.toBeNull();
+    expect(fresh.loggedIn()).toBeFalse();
+    expect(fresh.isAdmin()).toBeFalse();
+    expect(sessionReads().length).toBe(0); // and construction reads no cookie either
   });
 
-  it('set() updates the signal and writes NOTHING to web storage', () => {
-    const setItem = spyOn(Storage.prototype, 'setItem').and.callThrough();
-    svc.set(makeSession());
+  it('a forged mirror is REMOVED once the server answers "not authenticated"', async () => {
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(makeSession({ label: 'forged', roles: ['admin'] })));
+    const pending = svc.hydrate();
+    sessionReads()[0].flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(await pending).toBeNull();
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+  });
+
+  it('set() updates the signal AND publishes the non-secret mirror the fleet reads', () => {
+    // hugmesh-host-shell + admin/mod/forum/user/user-mesh/wiki/tube/owncast/
+    // mastodon/api-docs/superadmin-service-catalog each load their entire
+    // session from this key and never call /bff/session; their route guards
+    // bounce on the signal it produces. Not writing it locked every role-home
+    // out after a successful sign-in.
+    svc.set(makeSession({ roles: ['user', 'mod'] }));
     expect(svc.loggedIn()).toBeTrue();
     expect(svc.session()?.label).toBe('alice@gmail.com');
+    const mirror = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(mirror).toEqual({
+      id: 'google:alice@gmail.com',
+      label: 'alice@gmail.com',
+      provider: 'google',
+      roles: ['user', 'mod'],
+      registrationComplete: false,
+    });
+    // Strict non-secret projection: auth rides the httpOnly cookie, so the
+    // mirror carries no token-ish key (it never did).
+    for (const key of Object.keys(mirror)) expect(/token|secret|cookie/i.test(key)).toBeFalse();
+  });
+
+  it('the mirror write is IDEMPOTENT — re-publishing the same session touches no storage', () => {
+    // A `storage` event only reaches sibling tabs on a real byte change. Writing
+    // unconditionally would wake the other tab, which would hydrate, write back,
+    // and wake this one again — the ping-pong this guard exists to prevent.
+    svc.set(makeSession());
+    const setItem = spyOn(Storage.prototype, 'setItem').and.callThrough();
+    const removeItem = spyOn(Storage.prototype, 'removeItem').and.callThrough();
+    svc.set(makeSession());
     expect(setItem).not.toHaveBeenCalled();
-    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(removeItem).not.toHaveBeenCalled();
+    // ...and a real change still lands.
+    svc.set(makeSession({ roles: ['user', 'admin'] }));
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user', 'admin']);
+  });
+
+  it('publishing survives web storage that throws (private mode / quota)', () => {
+    spyOn(Storage.prototype, 'setItem').and.throwError('QuotaExceededError');
+    spyOn(Storage.prototype, 'getItem').and.throwError('SecurityError');
+    expect(() => svc.set(makeSession())).not.toThrow();
+    // The cookie still holds the session; only the convenience mirror is lost.
+    expect(svc.loggedIn()).toBeTrue();
   });
 
   it('isAdmin is true only when the admin role is present', () => {
@@ -118,12 +174,14 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(svc.fullyRegistered()).toBeTrue();
   });
 
-  it('patch() merges fields into the existing session (in memory)', () => {
+  it('patch() merges fields into the existing session, and the mirror follows', () => {
     svc.set(makeSession());
     svc.patch({ roles: ['user', 'admin'] });
     expect(svc.session()?.roles).toEqual(['user', 'admin']);
     expect(svc.session()?.label).toBe('alice@gmail.com'); // unrelated fields preserved
-    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    const mirror = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(mirror.roles).toEqual(['user', 'admin']);
+    expect(mirror.label).toBe('alice@gmail.com');
   });
 
   it('patch() is a no-op when there is no session', () => {
@@ -180,8 +238,7 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
 
   // ── hydrate(): the read of server truth ──────────────────────────────────
 
-  it('hydrate() loads {roles,registrationComplete} from GET /bff/session with credentials, persisting nothing', async () => {
-    const setItem = spyOn(Storage.prototype, 'setItem').and.callThrough();
+  it('hydrate() loads {roles,registrationComplete} from GET /bff/session with credentials, and publishes them to the fleet mirror', async () => {
     const pending = svc.hydrate();
     const [req] = sessionReads();
     expect(req.request.method).toBe('GET');
@@ -193,8 +250,40 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(svc.fullyRegistered()).toBeTrue();
     // no token is ever exposed (auth rides the httpOnly cookie)
     expect((s as any)?.bffToken).toBeUndefined();
-    expect(setItem).not.toHaveBeenCalled();
-    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    // The SERVER's roles — not login()'s roles:['user'] guess — are what the
+    // not-yet-migrated remotes' guards read out of the mirror.
+    const mirror = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(mirror.roles).toEqual(['user', 'admin']);
+    expect(mirror.registrationComplete).toBeTrue();
+    for (const key of Object.keys(mirror)) expect(/token|secret|cookie/i.test(key)).toBeFalse();
+  });
+
+  it('hydrate() takes its IDENTITY from the mirror, so every tab and remote resolves the same one', async () => {
+    // /bff/session reports no id/label/provider. A second tab that hydrated on
+    // its own would otherwise settle on a BLANK label, write that back, and the
+    // first tab would write its own label back — forever. Reading the shared
+    // mirror is what makes them converge (and what restores the signed-in name
+    // across the hard navigation out of this remote).
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(makeSession({ id: 'x', label: 'from-other-tab', provider: 'password', roles: ['user'] })));
+    const pending = svc.hydrate();
+    sessionReads()[0].flush({ roles: ['mod'], registrationComplete: true });
+    const s = await pending;
+    expect(s?.label).toBe('from-other-tab');
+    expect(s?.provider).toBe('password');
+    expect(s?.id).toBe('x');
+    // ...but NOT its roles or registration: those are the server's alone.
+    expect(s?.roles).toEqual(['mod']);
+    expect(s?.registrationComplete).toBeTrue();
+  });
+
+  it('hydrate() ignores a CORRUPT mirror rather than throwing', async () => {
+    localStorage.setItem(LEGACY_KEY, '{not json');
+    const pending = svc.hydrate();
+    sessionReads()[0].flush({ roles: ['user'], registrationComplete: false });
+    const s = await pending;
+    expect(s?.roles).toEqual(['user']);
+    expect(s?.label).toBe('');
+    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user']);
   });
 
   it('hydrate() CORRECTS the roles while keeping the caller-established identity', async () => {
@@ -221,6 +310,30 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect((globalThis as any)[PROBE]).toBeNull();
     // A failed re-read is NOT an active sign-out: nothing to expire server-side.
     expect(sessionOuts().length).toBe(0);
+    // The server ANSWERED "no session", so the fleet mirror goes too — that
+    // removal is how a not-yet-migrated remote learns to drop its own session.
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+  });
+
+  it('hydrate() does NOT sign the fleet out when the request never reached the server', async () => {
+    // status 0 = DNS failure / offline / connection refused. The session was
+    // never disproved, and acting on it is destructive twice: it would remove
+    // the mirror (signing the user out of every remote) and — because the
+    // bootstrap read is memoised — strand them anonymous until a re-login.
+    svc.set(makeSession({ roles: ['user', 'admin'] }));
+    const bootstrap = svc.ensureHydrated();
+    sessionReads()[0].error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+    expect(await bootstrap).not.toBeNull();
+    expect(svc.loggedIn()).toBeTrue();
+    expect(svc.isAdmin()).toBeTrue();
+    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user', 'admin']);
+    // ...and the memo is released, so the next entry into the remote retries.
+    const retry = svc.ensureHydrated();
+    expect(retry).not.toBe(bootstrap);
+    const reads = sessionReads();
+    expect(reads.length).toBe(1);
+    reads[0].flush({ roles: ['user', 'admin'], registrationComplete: true });
+    expect((await retry)?.registrationComplete).toBeTrue();
   });
 
   it('hydrate() NEVER posts cross-tab — success or failure (a read must not fan out into more reads)', async () => {
@@ -271,11 +384,11 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     }
   });
 
-  it("re-hydrates on a sibling tab's `storage` event for the legacy hug.session mirror (a host-shell sign-out there) without reading the value", async () => {
+  it("re-hydrates on a sibling tab's `storage` event for the hug.session mirror (a host-shell sign-out there)", async () => {
     // The host shell's clear() removes the mirror and posts on no channel, so
     // the `storage` event it raises in OTHER tabs is the only signal that
-    // reaches this tab. Transport only: the value is never read.
-    const getItem = spyOn(Storage.prototype, 'getItem').and.callThrough();
+    // reaches this tab. Transport only: the removed/new value is never ADOPTED
+    // — the cookie decides.
     svc.set(makeSession({ label: 'kept' }));
     window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, oldValue: '{"stale":true}', newValue: null }));
     const reads = sessionReads();
@@ -283,10 +396,32 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(reads[0].request.withCredentials).toBeTrue();
     reads[0].flush(null, { status: 401, statusText: 'Unauthorized' });
     await until(() => svc.session() === null, 'the sign-out reaching this tab');
-    expect(getItem).not.toHaveBeenCalled();
     // An unrelated key (the locale preference) is not a session signal.
     window.dispatchEvent(new StorageEvent('storage', { key: 'snap.login.lang', newValue: 'de' }));
     expect(sessionReads().length).toBe(0);
+  });
+
+  it('IGNORES a `storage` event whose value is exactly the session this tab already holds', async () => {
+    // This service is a WRITER of the mirror now, so an event can be a sibling
+    // login-ui tab merely re-confirming what is already true. Re-reading would
+    // answer the same, write it back, and wake the other tab again: two open
+    // tabs would hydrate each other forever. Nothing to learn => no read.
+    svc.set(makeSession({ label: 'same', roles: ['user', 'mod'] }));
+    const echo = localStorage.getItem(LEGACY_KEY);
+    expect(echo).not.toBeNull();
+    window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, newValue: echo }));
+    await sleep(20);
+    expect(sessionReads().length).toBe(0);
+    expect(svc.session()?.label).toBe('same');
+    // A DIFFERENT value is still news (a not-yet-migrated shell wrote its own).
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: LEGACY_KEY,
+      newValue: JSON.stringify(makeSession({ label: 'shell-user', roles: ['user'] })),
+    }));
+    const reads = sessionReads();
+    expect(reads.length).toBe(1);
+    reads[0].flush({ roles: ['user', 'mod'], registrationComplete: false });
+    await until(() => localStorage.getItem(LEGACY_KEY) !== echo, 'the re-read republishing the mirror');
   });
 
   // ── clear(): sign-out order ─────────────────────────────────────────────
@@ -343,23 +478,27 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     await pending;
     expect(svc.session()).toBeNull();
     expect(post).toHaveBeenCalledTimes(1);
+    // The mirror goes even when the server call failed: the local sign-out must
+    // reach the not-yet-migrated remotes regardless.
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
 
-  it('nothing in sign-in → hydrate → sign-out touches web storage', async () => {
-    const setItem = spyOn(Storage.prototype, 'setItem').and.callThrough();
-    const removeItem = spyOn(Storage.prototype, 'removeItem').and.callThrough();
-    const getItem = spyOn(Storage.prototype, 'getItem').and.callThrough();
-    svc.set(makeSession());
+  it('the fleet mirror tracks the whole sign-in → hydrate → sign-out lifecycle', async () => {
+    // The end-to-end shape the fleet depends on: present with the login-time
+    // guess, CORRECTED to the server roles, then GONE.
+    svc.set(makeSession({ label: 'e2e-admin', provider: 'password', roles: ['user'] }));
+    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user']);
     const h = svc.hydrate();
-    sessionReads()[0].flush({ roles: ['user'], registrationComplete: true });
+    sessionReads()[0].flush({ roles: ['admin', 'user'], registrationComplete: true });
     await h;
+    const mirror = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(mirror.roles).toEqual(['admin', 'user']);
+    expect(mirror.label).toBe('e2e-admin');
+    expect(mirror.registrationComplete).toBeTrue();
     const c = svc.clear();
     sessionOuts()[0].flush({});
     await c;
-    expect(setItem).not.toHaveBeenCalled();
-    expect(removeItem).not.toHaveBeenCalled();
-    expect(getItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
 
   // ── CSRF double-submit ──────────────────────────────────────────────────
@@ -425,6 +564,7 @@ describe('SessionService (OIDC flag is a provider tag, not a custody switch)', (
   let httpMock: HttpTestingController;
 
   function build(oidc: boolean): void {
+    localStorage.clear();
     if (oidc) (globalThis as any).__HUG_OIDC_ENABLED__ = true;
     else delete (globalThis as any).__HUG_OIDC_ENABLED__;
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
@@ -441,14 +581,16 @@ describe('SessionService (OIDC flag is a provider tag, not a custody switch)', (
     localStorage.clear();
   });
 
-  it('with the flag ON a bootstrap hydrate (no prior identity) tags provider=oidc; nothing persisted', async () => {
+  it('with the flag ON a bootstrap hydrate (no prior identity) tags provider=oidc; still no token anywhere', async () => {
     build(true);
     const pending = svc.hydrate();
     httpMock.expectOne((r) => r.url.endsWith('/bff/session')).flush({ roles: ['user', 'admin'], registrationComplete: true });
     const s = await pending;
     expect(s?.provider).toBe('oidc');
     expect((s as any)?.bffToken).toBeUndefined();
-    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    const mirror = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(mirror.provider).toBe('oidc');
+    for (const key of Object.keys(mirror)) expect(/token|secret|cookie/i.test(key)).toBeFalse();
   });
 
   it('with the flag OFF the same hydrate falls back to the vestigial google tag; custody is identical', async () => {
@@ -457,7 +599,7 @@ describe('SessionService (OIDC flag is a provider tag, not a custody switch)', (
     httpMock.expectOne((r) => r.url.endsWith('/bff/session')).flush({ roles: ['user'], registrationComplete: false });
     const s = await pending;
     expect(s?.provider).toBe('google');
-    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').provider).toBe('google');
   });
 
   it('never overrides a caller-established provider (a native sign-in stays password)', async () => {
@@ -470,15 +612,17 @@ describe('SessionService (OIDC flag is a provider tag, not a custody switch)', (
 });
 
 // ── Non-secret post-hydrate probe (globalThis.__HUG_SESSION__) ──────────────
-// Nothing is persisted to web storage, so the in-memory signal is the only
-// source of the hydrated roles. The service mirrors the non-secret metadata onto
-// this global so a black-box e2e can read the persona's roles back VERBATIM
-// (e2e/tests/helpers/roles.ts readSessionProbe(), via auth-steps.ts).
+// The in-memory signal is this service's own source of the hydrated roles (the
+// fleet mirror is an outbound transport for OTHER apps, never read back into
+// the signal). The service mirrors the non-secret metadata onto this global so a
+// black-box e2e can read the persona's roles back VERBATIM from the service
+// under test (e2e/tests/helpers/roles.ts readSessionProbe(), via auth-steps.ts).
 describe('SessionService (__HUG_SESSION__ probe)', () => {
   let svc: SessionService;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
+    localStorage.clear();
     (globalThis as any).__HUG_BFF_URL__ = 'https://bff.test';
     TestBed.configureTestingModule({ providers: [SessionService, ...HTTP] });
     svc = TestBed.inject(SessionService);

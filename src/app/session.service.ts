@@ -31,11 +31,13 @@ const CFG = {
 /**
  * Non-secret post-hydrate session PROBE (`globalThis.__HUG_SESSION__`).
  *
- * Nothing about the session is persisted to web storage — the hydrated session
- * lives ONLY in the in-memory signal — so there is no storage surface an e2e can
- * read the roles back from, and the roles→signal mapping's end-to-end
- * faithfulness (no drop, no up-case) would otherwise be unobservable outside the
- * unit tests.
+ * The session's AUTHORITY lives in the httpOnly cookie and its in-memory
+ * projection lives in the signal; the only web-storage surface is the fleet
+ * mirror ({@link FLEET_MIRROR_KEY}), which is a compat TRANSPORT for the
+ * not-yet-migrated remotes and deliberately not the read surface a test of THIS
+ * service's roles→signal mapping should assert on. Without this probe that
+ * mapping's end-to-end faithfulness (no drop, no up-case) would be unobservable
+ * outside the unit tests.
  *
  * This probe mirrors the SAME non-secret metadata the signal already holds
  * (id/label/provider/roles/registrationComplete) onto a host-injected-style
@@ -59,20 +61,71 @@ const CSRF_COOKIE = 'XSRF-TOKEN';
  *    fleet (host shell + remotes) listens on, so a write in this remote reaches
  *    the host's nav/guards and vice versa;
  *  • a `BroadcastChannel` of the same name — how sibling TABS learn that this tab
- *    signed in or out (nothing is written to web storage, so there is no
- *    `storage` event to ride on).
+ *    signed in or out. It is the PRIMARY cross-tab transport: the fleet mirror's
+ *    `storage` event carries the same news to a sibling login-ui tab, but only
+ *    when the stored bytes actually change, and a migrated fleet will stop
+ *    writing that key altogether.
  */
 const SESSION_CHANNEL = 'hug-session-change';
 
 /**
- * The RETIRED localStorage mirror key. This service never reads or writes it
- * (see the class doc). It survives here for ONE transport-only reason: the host
- * shell and the not-yet-migrated remotes still write/remove the key on THEIR
- * sign-in / status sync / sign-out and post on no BroadcastChannel, so a
- * sibling tab's `storage` event for this key is the only signal that reaches
- * this tab from them — see {@link SessionService.onLegacyMirrorStorage}.
+ * The `hug.session` NON-SECRET session mirror in localStorage.
+ *
+ * A COMPAT TRANSPORT, never custody. Auth is the httpOnly `bff_` cookie and
+ * nothing else; this key has never held a token and does not hold one now (the
+ * projection written here is the same non-secret metadata as the
+ * {@link SESSION_PROBE} global: id/label/provider/roles/registrationComplete).
+ *
+ * WHY IT IS STILL WRITTEN. login-ui is the fleet's only sign-in surface and the
+ * only remote that reads the server's real roles, and the rest of the fleet has
+ * NOT migrated: hugmesh-host-shell plus eleven sibling remotes (admin, mod,
+ * forum, user, user-mesh, wiki, tube, owncast, mastodon, api-docs,
+ * superadmin-service-catalog) each hold their OWN SessionService whose sole
+ * source of session truth is `localStorage['hug.session']` — not one of them
+ * calls `GET /bff/session` — and their route guards bounce on the signal they
+ * load from it (hugmesh-admin-ui `adminGuard`: `session.isAdmin() ? true :
+ * router.parseUrl('/login')`; the same shape in mod/superadmin/fleet/
+ * workload-console/games-services). Retiring the WRITE while those READERS
+ * remain therefore locks every role-home out immediately after a successful
+ * sign-in: the session reaches login-ui and the host-shell chrome and nobody
+ * else. So the write stays as an explicitly-scoped shim, removable in one
+ * commit ({@link SessionService.publishMirror}) once the readers hydrate from
+ * `/bff/session` themselves.
+ *
+ * WHAT #3 ACTUALLY RETIRED, and still is retired: the localStorage session
+ * MODE. This service never seeds itself from the key (a forged mirror grants
+ * nothing — {@link SessionService.session} starts null and only a 2xx
+ * `/bff/session` can make it non-null), never takes roles or
+ * registrationComplete from it, and the `__HUG_SESSION_COOKIE_MODE__` /
+ * `SNAP_SESSION_COOKIE_MODE` switch is gone for good.
+ *
+ * It is also the only sign-out signal that crosses tabs from a not-yet-migrated
+ * host shell, which posts on no BroadcastChannel — see
+ * {@link SessionService.onMirrorStorage}.
  */
-const LEGACY_MIRROR_KEY = 'hug.session';
+const FLEET_MIRROR_KEY = 'hug.session';
+
+/** The provider tags a mirror value may legitimately carry (see SnapSession). */
+const PROVIDERS: readonly SnapSession['provider'][] = ['google', 'discord', 'oidc', 'password'];
+
+/**
+ * Did this error mean "the request never reached the server", as opposed to
+ * "the server answered, and the answer is no"?
+ *
+ * Angular's `HttpErrorResponse` reports status 0 for exactly that class — DNS
+ * failure, connection refused, offline, a blocked/aborted request — while every
+ * answer the server actually produced carries its real HTTP status (401 for an
+ * expired cookie, 502/504 for a dark BFF behind the gateway, and so on). The
+ * distinction is load-bearing in {@link SessionService.hydrate}: only an ANSWER
+ * may sign the user out. Duck-typed rather than `instanceof` so a rejection from
+ * anywhere in the generated-client pipeline is judged on the same rule, and
+ * anything without a numeric status counts as an answer (the pre-existing,
+ * conservative behaviour: drop to logged-out).
+ */
+function isUnreachable(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  return typeof status === 'number' && status === 0;
+}
 
 /**
  * Holds the logged-in session and derives the Casdoor-style role flags + the
@@ -87,13 +140,14 @@ const LEGACY_MIRROR_KEY = 'hug.session';
  *  • it is hydrated from `GET /bff/session` (credentials: include) — on every
  *    entry into this remote ({@link ensureHydrated}, via the route guard) and
  *    right after a sign-in;
- *  • it is NEVER persisted to web storage (the former localStorage `hug.session`
- *    mirror and its `__HUG_SESSION_COOKIE_MODE__` switch are gone — see
- *    hugmesh-login-ui issue #3). This service neither reads nor removes a legacy
- *    `hug.session` key that may still be in the browser: the host shell still
- *    owns and re-reads that key on its own, and a removal here would raise a
- *    `storage` event in every sibling tab's host instance — i.e. it would sign
- *    them out visually while their cookie is live;
+ *  • it is never AUTHORITATIVE in web storage: the signal starts null, only a
+ *    2xx `/bff/session` can make it non-null, and the localStorage session MODE
+ *    (`__HUG_SESSION_COOKIE_MODE__` / `SNAP_SESSION_COOKIE_MODE`) is gone — see
+ *    hugmesh-login-ui issue #3. The non-secret projection IS still published to
+ *    the `hug.session` fleet mirror ({@link FLEET_MIRROR_KEY}) as a transport
+ *    shim, because eleven sibling remotes still read their whole session from
+ *    that key and none of them hydrates; a sign-out removes it, which is how a
+ *    not-yet-migrated remote learns to drop its own session;
  *  • mutations echo the double-submit `X-CSRF-TOKEN` header ({@link csrfHeader});
  *  • logout goes via `POST /bff/sessionOut` and AWAITS it before dropping local
  *    state ({@link clear}).
@@ -116,15 +170,16 @@ const LEGACY_MIRROR_KEY = 'hug.session';
 @Injectable({ providedIn: 'root' })
 export class SessionService implements OnDestroy {
   private readonly channel = SESSION_CHANNEL;
-  /** Cross-tab channel (nothing is written to web storage, so `storage` events
-   *  cannot fire; this is the only way another tab learns of a sign-in/out). */
+  /** Cross-tab channel — the primary way another tab learns of a sign-in/out
+   *  (the fleet mirror's `storage` event is the secondary, legacy one). */
   private readonly bc: BroadcastChannel | null;
   /** The generated, typed admin-bff client. `/bff/session` + `/bff/sessionOut` are
    *  CREDENTIALED calls, so both go out with {@link withBffCredentials} — the
    *  generated transport sends the httpOnly `bff_` cookie only when asked. */
   private readonly auth = inject(AuthControllerService);
-  /** Starts EMPTY: the cookie is the source of truth and is read via
-   *  {@link hydrate}, never from web storage. */
+  /** Starts EMPTY and is only ever filled by a 2xx `GET /bff/session`: the
+   *  cookie is the source of truth. The fleet mirror is WRITTEN from this
+   *  signal, never read back into it, so a forged mirror grants nothing. */
   readonly session = signal<SnapSession | null>(null);
   readonly loggedIn = computed(() => this.session() !== null);
   readonly isAdmin = computed(() => (this.session()?.roles ?? []).includes('admin'));
@@ -158,18 +213,28 @@ export class SessionService implements OnDestroy {
 
   /**
    * Compat bridge for the not-yet-migrated fleet (transport only, never
-   * custody). The host shell's `clear()` removes the legacy `hug.session`
-   * mirror and its status sync re-writes it; neither posts on the
-   * BroadcastChannel, so the `storage` event that write raises in every OTHER
-   * tab is the only way a host-shell sign-out over there reaches this tab. It
-   * is treated exactly like a channel message — "the server-side session may
-   * have changed, ask the cookie" — and the stored VALUE is never read. It
-   * cannot self-trigger: `storage` never fires in the writing document and this
-   * service never writes the key. Drop it once every consumer posts on the
-   * channel instead (hugmesh-login-ui #3 follow-ups).
+   * custody). The host shell's `clear()` removes the `hug.session` mirror and
+   * its status sync re-writes it; neither posts on the BroadcastChannel, so the
+   * `storage` event that write raises in every OTHER tab is the only way a
+   * host-shell sign-out over there reaches this tab. It is treated exactly like
+   * a channel message — "the server-side session may have changed, ask the
+   * cookie": the value is never adopted, only `GET /bff/session` decides.
+   *
+   * The one thing the value IS used for is a cheap identity check. This service
+   * publishes the mirror itself now ({@link publishMirror}), so an incoming
+   * event can be a sibling login-ui tab merely re-confirming the session this
+   * tab already holds. When the incoming bytes are exactly what this tab would
+   * write, there is nothing to learn — and re-reading would answer with the
+   * same value, write it back, and wake the other tab again, which is how two
+   * open tabs would hydrate each other forever. A removal (`newValue === null`)
+   * or any different value always re-reads.
+   *
+   * It cannot self-trigger: `storage` never fires in the writing document.
    */
-  private readonly onLegacyMirrorStorage = (e: StorageEvent): void => {
-    if (e.key === LEGACY_MIRROR_KEY) void this.hydrate();
+  private readonly onMirrorStorage = (e: StorageEvent): void => {
+    if (e.key !== FLEET_MIRROR_KEY) return;
+    if (e.newValue !== null && e.newValue === this.mirrorValue(this.session())) return;
+    void this.hydrate();
   };
 
   constructor() {
@@ -185,13 +250,13 @@ export class SessionService implements OnDestroy {
       // Another TAB signed in or out → re-hydrate from the BFF (the httpOnly
       // cookie is the source of truth; nothing crosses tabs via web storage).
       if (this.bc) this.bc.onmessage = () => { void this.hydrate(); };
-      window.addEventListener('storage', this.onLegacyMirrorStorage);
+      window.addEventListener('storage', this.onMirrorStorage);
     }
   }
 
   /**
    * Detach from every transport (same-document event, BroadcastChannel, the
-   * legacy-mirror `storage` bridge) when this injector is torn down (an
+   * fleet-mirror `storage` bridge) when this injector is torn down (an
    * unmounted federated remote, and every unit test's TestBed).
    *
    * The handlers RE-HYDRATE from `/bff/session` (or adopt a sibling's write),
@@ -205,7 +270,7 @@ export class SessionService implements OnDestroy {
     this.destroyed = true;
     if (typeof window !== 'undefined') {
       window.removeEventListener(this.channel, this.onSameDocumentChange);
-      window.removeEventListener('storage', this.onLegacyMirrorStorage);
+      window.removeEventListener('storage', this.onMirrorStorage);
     }
     this.bc?.close();
   }
@@ -218,19 +283,106 @@ export class SessionService implements OnDestroy {
    * same read; later changes arrive through {@link set}/{@link clear} and the
    * broadcasts. Never blocks rendering: callers fire-and-forget it and the
    * signal-driven views update when it resolves.
+   *
+   * A read the server ANSWERED stays memoised, 401 included — an anonymous
+   * visitor clicking around the login views must not re-ask on every route
+   * activation. A read that never reached the server does NOT: {@link hydrate}
+   * clears the memo so the next entry retries (see its catch).
    */
   ensureHydrated(): Promise<SnapSession | null> {
     this.bootstrapHydrate ??= this.hydrate();
     return this.bootstrapHydrate;
   }
 
-  /** The SINGLE place the session signal is written. Also mirrors the non-secret
-   *  metadata onto the {@link SESSION_PROBE} global so a black-box e2e can read
-   *  the post-hydrate roles (nothing is persisted to web storage — the signal is
-   *  the only source of truth). */
+  /** The SINGLE place the session signal is written — and therefore the single
+   *  place both non-secret projections are kept in lockstep with it: the
+   *  {@link SESSION_PROBE} global (a black-box read surface for e2e) and the
+   *  {@link FLEET_MIRROR_KEY} localStorage mirror (the transport the
+   *  not-yet-migrated remotes read their whole session from). The mirror is
+   *  written BEFORE any caller notifies anyone, so a listener that re-reads
+   *  storage on the notification sees the new value, never the old one. */
   private setSession(s: SnapSession | null): void {
     this.session.set(s);
     this.publish(s);
+    this.publishMirror(s);
+  }
+
+  /** The exact bytes this service would store in the fleet mirror for `s`, or
+   *  `null` for "no session, the key must not exist". The projection is the
+   *  same non-secret metadata as {@link publish} — never a token, never the
+   *  cookie. */
+  private mirrorValue(s: SnapSession | null): string | null {
+    return s
+      ? JSON.stringify({
+          id: s.id,
+          label: s.label,
+          provider: s.provider,
+          roles: s.roles,
+          registrationComplete: s.registrationComplete,
+        })
+      : null;
+  }
+
+  /**
+   * Publish the session to the {@link FLEET_MIRROR_KEY} mirror, or remove the
+   * key on a sign-out. The write is what keeps the eleven not-yet-migrated
+   * remotes seeing the signed-in user (and the correct ROLES — a mod/admin
+   * whose mirror still said `['user']` was the 2026-08-14 role-home lockout);
+   * the removal is what signs them out.
+   *
+   * IDEMPOTENT ON PURPOSE: it compares the stored bytes first and writes only on
+   * a real change, so a tab that merely re-confirms what is already there raises
+   * no `storage` event in its siblings. Together with {@link onMirrorStorage}'s
+   * equality check that is what makes two open tabs CONVERGE rather than
+   * re-hydrate each other forever.
+   *
+   * Web storage can be unavailable or full (a private-mode browser, a
+   * quota-exceeded profile) and both `getItem` and `setItem` THROW there. The
+   * mirror is a convenience for other apps, never this one's source of truth,
+   * so a failure is swallowed: this session stays valid on its cookie.
+   */
+  private publishMirror(s: SnapSession | null): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const next = this.mirrorValue(s);
+      if (localStorage.getItem(FLEET_MIRROR_KEY) === next) return;
+      if (next === null) localStorage.removeItem(FLEET_MIRROR_KEY);
+      else localStorage.setItem(FLEET_MIRROR_KEY, next);
+    } catch {
+      // Storage unavailable/full — the httpOnly cookie still holds the session.
+    }
+  }
+
+  /**
+   * The IDENTITY fields (id/label/provider) the fleet mirror currently carries,
+   * or null when there is no usable mirror. Display metadata ONLY: roles and
+   * registrationComplete are never taken from here — they come from
+   * `/bff/session` on every hydrate — and a session is never created from this
+   * value, so a forged or stale mirror can spoof a name in this browser and
+   * grant nothing.
+   *
+   * {@link hydrate} prefers it over its own in-memory prior so that every tab
+   * and every remote resolves the SAME identity for one cookie: two tabs that
+   * each kept a different label would otherwise write the mirror back and forth
+   * forever. It is also what restores the signed-in name across the hard
+   * navigation out of this remote, which `/bff/session` cannot report.
+   */
+  private mirrorIdentity(): Partial<Pick<SnapSession, 'id' | 'label' | 'provider'>> | null {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem(FLEET_MIRROR_KEY);
+      if (!raw) return null;
+      const m = JSON.parse(raw) as Record<string, unknown> | null;
+      if (!m || typeof m !== 'object') return null;
+      const provider = m['provider'] as SnapSession['provider'];
+      return {
+        id: typeof m['id'] === 'string' ? (m['id'] as string) : undefined,
+        label: typeof m['label'] === 'string' ? (m['label'] as string) : undefined,
+        provider: PROVIDERS.includes(provider) ? provider : undefined,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /** Mirror the session's NON-SECRET metadata (never a token) onto the
@@ -248,8 +400,9 @@ export class SessionService implements OnDestroy {
       : null;
   }
 
-  /** Reflect a just-established session (a sign-in wrote the cookie). In-memory
-   *  only; tells the in-page siblings AND the other tabs. */
+  /** Reflect a just-established session (a sign-in wrote the cookie). Updates
+   *  the signal, republishes the non-secret probe + fleet mirror, then tells the
+   *  in-page siblings AND the other tabs. */
   set(s: SnapSession): void {
     this.setSession(s);
     this.notifySiblings();
@@ -268,7 +421,9 @@ export class SessionService implements OnDestroy {
    * cookie is dead, that re-read gets a 200 and puts the session straight back
    * (the "sign-out did not sign out" defect the host shell fixed in its own copy).
    * Best-effort on the RESULT only: an already-dead cookie 401s and an offline
-   * browser throws — neither may strand the user signed-in locally.
+   * browser throws — neither may strand the user signed-in locally. Dropping
+   * local state also REMOVES the fleet mirror, which is how the not-yet-migrated
+   * remotes (whose only session source it is) learn to sign out too.
    */
   async clear(): Promise<void> {
     try {
@@ -322,26 +477,51 @@ export class SessionService implements OnDestroy {
         ),
       );
       if (this.destroyed) return null; // torn down while the read was in flight
+      // IDENTITY is not reported by /bff/session (the cookie session is
+      // identified server-side), so it is carried over rather than invented:
+      // the fleet mirror FIRST — that is the one value every tab and every
+      // remote agrees on for this cookie, which is what makes repeated
+      // cross-tab hydrates converge instead of two tabs writing their own
+      // labels back and forth, and it is what restores the signed-in name
+      // across the hard navigation out of this remote — then whatever this
+      // instance already established, then the blank bootstrap identity.
+      // ROLES and registrationComplete are NEVER carried over: they are read
+      // from the server on every hydrate, so a stale mirror cannot grant a tier.
+      const mirror = this.mirrorIdentity();
       const prior = this.session();
       const s: SnapSession = {
-        id: prior?.id ?? '',
-        label: prior?.label ?? '',
-        // No caller-established identity (a bootstrap hydrate of a live cookie):
-        // tag 'oidc' when the host says the OIDC login path is on, else the
-        // vestigial 'google' placeholder — no UI logic reads this value (see the
-        // SnapSession.provider comment), so the tag itself is not load-bearing.
-        provider: prior?.provider ?? (oidcEnabled() ? 'oidc' : 'google'),
+        id: mirror?.id ?? prior?.id ?? '',
+        label: mirror?.label ?? prior?.label ?? '',
+        // No known identity at all (a bootstrap hydrate of a live cookie in a
+        // fresh browser): tag 'oidc' when the host says the OIDC login path is
+        // on, else the vestigial 'google' placeholder — no UI logic reads this
+        // value (see the SnapSession.provider comment), so the tag itself is
+        // not load-bearing.
+        provider: mirror?.provider ?? prior?.provider ?? (oidcEnabled() ? 'oidc' : 'google'),
         roles: data.roles ?? ['user'],
         registrationComplete: !!data.registrationComplete,
       };
       this.setSession(s);
       this.notifySiblings();
       return s;
-    } catch {
-      // The cookie is gone/invalid server-side (401) or unreachable: drop to
-      // logged-out locally. Deliberately NOT /bff/sessionOut (nothing to expire)
-      // and NOT a cross-tab post (see above) — in-page siblings adopt the null.
+    } catch (err) {
       if (this.destroyed) return null;
+      // A read that never REACHED the server proves nothing about the session,
+      // and acting on it is destructive twice over now that this service owns
+      // the fleet mirror: it would sign the user out of every not-yet-migrated
+      // remote (the mirror is removed) on a transient blip, and — because the
+      // bootstrap read is memoised — leave them anonymous until a re-login even
+      // after the network comes back. So leave the session, the mirror and the
+      // siblings exactly as they are, and let the bootstrap be retried on the
+      // next entry into the remote.
+      if (isUnreachable(err)) {
+        this.bootstrapHydrate = null;
+        return this.session();
+      }
+      // The server ANSWERED and the answer is "not authenticated" (401, or any
+      // other status/unusable body): drop to logged-out locally and remove the
+      // mirror. Deliberately NOT /bff/sessionOut (nothing to expire) and NOT a
+      // cross-tab post (see above) — in-page siblings adopt the null.
       this.setSession(null);
       this.notifySiblings();
       return null;

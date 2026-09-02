@@ -315,25 +315,42 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
 
-  it('hydrate() does NOT sign the fleet out when the request never reached the server', async () => {
-    // status 0 = DNS failure / offline / connection refused. The session was
-    // never disproved, and acting on it is destructive twice: it would remove
-    // the mirror (signing the user out of every remote) and — because the
-    // bootstrap read is memoised — strand them anonymous until a re-login.
+  // A read that answered NOTHING about the session must not sign anyone out.
+  // Since this service owns the fleet mirror again, a wrong sign-out here is not
+  // local: it removes the mirror, so every not-yet-migrated remote goes
+  // anonymous too — and because the bootstrap read is memoised, they stay that
+  // way until a re-login. status 0 is "never reached a server" (DNS/offline/
+  // refused); 5xx is "nothing in the path could produce a verdict" (a dark or
+  // restarting admin-bff behind the gateway). Neither disproves the cookie.
+  for (const [what, status] of [['never reached the server', 0], ['got a 502 from a dark BFF', 502], ['got a 503 mid-restart', 503]] as const) {
+    it(`hydrate() does NOT sign the fleet out when the read ${what}`, async () => {
+      svc.set(makeSession({ roles: ['user', 'admin'] }));
+      const bootstrap = svc.ensureHydrated();
+      if (status === 0) sessionReads()[0].error(new ProgressEvent('error'), { status, statusText: 'Unknown Error' });
+      else sessionReads()[0].flush(null, { status, statusText: 'Bad Gateway' });
+      expect(await bootstrap).not.toBeNull();
+      expect(svc.loggedIn()).toBeTrue();
+      expect(svc.isAdmin()).toBeTrue();
+      expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user', 'admin']);
+      // ...and the memo is released, so the next entry into the remote retries.
+      const retry = svc.ensureHydrated();
+      expect(retry).not.toBe(bootstrap);
+      const reads = sessionReads();
+      expect(reads.length).toBe(1);
+      reads[0].flush({ roles: ['user', 'admin'], registrationComplete: true });
+      expect((await retry)?.registrationComplete).toBeTrue();
+    });
+  }
+
+  it('hydrate() DOES sign out on a 403 — that answer is about the session', async () => {
+    // The complement of the guard above: an answering status still signs out,
+    // mirror included, so a revoked cookie is not held open by the new leniency.
     svc.set(makeSession({ roles: ['user', 'admin'] }));
-    const bootstrap = svc.ensureHydrated();
-    sessionReads()[0].error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
-    expect(await bootstrap).not.toBeNull();
-    expect(svc.loggedIn()).toBeTrue();
-    expect(svc.isAdmin()).toBeTrue();
-    expect(JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null').roles).toEqual(['user', 'admin']);
-    // ...and the memo is released, so the next entry into the remote retries.
-    const retry = svc.ensureHydrated();
-    expect(retry).not.toBe(bootstrap);
-    const reads = sessionReads();
-    expect(reads.length).toBe(1);
-    reads[0].flush({ roles: ['user', 'admin'], registrationComplete: true });
-    expect((await retry)?.registrationComplete).toBeTrue();
+    const pending = svc.hydrate();
+    sessionReads()[0].flush(null, { status: 403, statusText: 'Forbidden' });
+    expect(await pending).toBeNull();
+    expect(svc.loggedIn()).toBeFalse();
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
 
   it('hydrate() NEVER posts cross-tab — success or failure (a read must not fan out into more reads)', async () => {
@@ -414,14 +431,33 @@ describe('SessionService (httpOnly-cookie custody — the only session model)', 
     expect(sessionReads().length).toBe(0);
     expect(svc.session()?.label).toBe('same');
     // A DIFFERENT value is still news (a not-yet-migrated shell wrote its own).
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: LEGACY_KEY,
-      newValue: JSON.stringify(makeSession({ label: 'shell-user', roles: ['user'] })),
-    }));
+    // A real sibling's write LANDS in storage before the event fires, so the
+    // value is put there too — dispatching the event alone would leave the key
+    // holding this tab's own bytes and prove nothing.
+    const shellValue = JSON.stringify({
+      id: 'shell-user', label: 'shell-user', provider: 'password',
+      roles: ['user'], registrationComplete: false,
+    });
+    localStorage.setItem(LEGACY_KEY, shellValue);
+    window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, newValue: shellValue }));
     const reads = sessionReads();
     expect(reads.length).toBe(1);
     reads[0].flush({ roles: ['user', 'mod'], registrationComplete: false });
-    await until(() => localStorage.getItem(LEGACY_KEY) !== echo, 'the re-read republishing the mirror');
+    // The cookie decides the ROLES (the shell claimed ['user']; the server says
+    // ['user','mod']) while the shared mirror decides the IDENTITY — which is
+    // what makes the two writers converge on one value instead of alternating.
+    await until(() => svc.session()?.label === 'shell-user', 'the re-read adopting the shared identity');
+    expect(svc.session()?.roles).toEqual(['user', 'mod']);
+    const settled = JSON.parse(localStorage.getItem(LEGACY_KEY) ?? 'null');
+    expect(settled).toEqual({
+      id: 'shell-user', label: 'shell-user', provider: 'password',
+      roles: ['user', 'mod'], registrationComplete: false,
+    });
+    // ...and that republished value is now a self-echo: replaying it as an event
+    // is ignored, so the exchange TERMINATES rather than ping-ponging.
+    window.dispatchEvent(new StorageEvent('storage', { key: LEGACY_KEY, newValue: JSON.stringify(settled) }));
+    await sleep(20);
+    expect(sessionReads().length).toBe(0);
   });
 
   // ── clear(): sign-out order ─────────────────────────────────────────────

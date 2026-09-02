@@ -109,22 +109,32 @@ const FLEET_MIRROR_KEY = 'hug.session';
 const PROVIDERS: readonly SnapSession['provider'][] = ['google', 'discord', 'oidc', 'password'];
 
 /**
- * Did this error mean "the request never reached the server", as opposed to
- * "the server answered, and the answer is no"?
+ * Did this failure carry an ANSWER about the session, as opposed to no answer at
+ * all?
  *
- * Angular's `HttpErrorResponse` reports status 0 for exactly that class — DNS
- * failure, connection refused, offline, a blocked/aborted request — while every
- * answer the server actually produced carries its real HTTP status (401 for an
- * expired cookie, 502/504 for a dark BFF behind the gateway, and so on). The
- * distinction is load-bearing in {@link SessionService.hydrate}: only an ANSWER
- * may sign the user out. Duck-typed rather than `instanceof` so a rejection from
- * anywhere in the generated-client pipeline is judged on the same rule, and
- * anything without a numeric status counts as an answer (the pre-existing,
- * conservative behaviour: drop to logged-out).
+ * Only an answer may sign the user out, and that distinction is load-bearing in
+ * {@link SessionService.hydrate} now that a sign-out here removes the fleet
+ * mirror and therefore signs the user out of every not-yet-migrated remote too.
+ * Two failure classes carry no answer:
+ *
+ *  • **status 0** — Angular's `HttpErrorResponse` reports it for a request that
+ *    never reached a server at all: DNS failure, connection refused, offline, a
+ *    blocked or aborted request.
+ *  • **5xx** — something in the path (the gateway, or admin-bff itself while it
+ *    is dark or restarting) failed to produce a verdict. A 502/503/504 says the
+ *    BFF could not be asked, NOT that the cookie is dead; treating a rolling
+ *    restart as a fleet-wide sign-out is exactly the blast radius this guard
+ *    exists to avoid.
+ *
+ * Everything else IS an answer and still signs out: 401/403 (the cookie is
+ * expired or rejected), a 404 (this remote is pointed at the wrong BFF), and —
+ * conservatively — any rejection with no numeric status at all, e.g. an
+ * unusable body from the generated client. Duck-typed rather than `instanceof`
+ * so a rejection from anywhere in that pipeline is judged on the same rule.
  */
-function isUnreachable(err: unknown): boolean {
+function isInconclusive(err: unknown): boolean {
   const status = (err as { status?: unknown } | null)?.status;
-  return typeof status === 'number' && status === 0;
+  return typeof status === 'number' && (status === 0 || status >= 500);
 }
 
 /**
@@ -284,10 +294,11 @@ export class SessionService implements OnDestroy {
    * broadcasts. Never blocks rendering: callers fire-and-forget it and the
    * signal-driven views update when it resolves.
    *
-   * A read the server ANSWERED stays memoised, 401 included — an anonymous
-   * visitor clicking around the login views must not re-ask on every route
-   * activation. A read that never reached the server does NOT: {@link hydrate}
-   * clears the memo so the next entry retries (see its catch).
+   * A read that ANSWERED stays memoised, 401 included — an anonymous visitor
+   * clicking around the login views must not re-ask on every route activation.
+   * A read that answered nothing ({@link isInconclusive}: unreachable, or a 5xx
+   * from a dark BFF) does NOT: {@link hydrate} clears the memo so the next entry
+   * retries (see its catch).
    */
   ensureHydrated(): Promise<SnapSession | null> {
     this.bootstrapHydrate ??= this.hydrate();
@@ -506,20 +517,20 @@ export class SessionService implements OnDestroy {
       return s;
     } catch (err) {
       if (this.destroyed) return null;
-      // A read that never REACHED the server proves nothing about the session,
-      // and acting on it is destructive twice over now that this service owns
-      // the fleet mirror: it would sign the user out of every not-yet-migrated
-      // remote (the mirror is removed) on a transient blip, and — because the
-      // bootstrap read is memoised — leave them anonymous until a re-login even
-      // after the network comes back. So leave the session, the mirror and the
-      // siblings exactly as they are, and let the bootstrap be retried on the
-      // next entry into the remote.
-      if (isUnreachable(err)) {
+      // A read that produced no ANSWER about the session (unreachable, or a 5xx
+      // from a dark/restarting BFF) proves nothing, and acting on it is
+      // destructive twice over now that this service owns the fleet mirror: it
+      // would sign the user out of every not-yet-migrated remote (the mirror is
+      // removed) on a transient blip, and — because the bootstrap read is
+      // memoised — leave them anonymous until a re-login even after the BFF came
+      // back. So leave the session, the mirror and the siblings exactly as they
+      // are, and let the bootstrap be retried on the next entry into the remote.
+      if (isInconclusive(err)) {
         this.bootstrapHydrate = null;
         return this.session();
       }
-      // The server ANSWERED and the answer is "not authenticated" (401, or any
-      // other status/unusable body): drop to logged-out locally and remove the
+      // The answer is "not authenticated" (401/403, or any other answering
+      // status/unusable body): drop to logged-out locally and remove the
       // mirror. Deliberately NOT /bff/sessionOut (nothing to expire) and NOT a
       // cross-tab post (see above) — in-page siblings adopt the null.
       this.setSession(null);

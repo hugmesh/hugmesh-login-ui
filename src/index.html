@@ -35,8 +35,8 @@
        docker-entrypoint.d/40-snap-config.sh from env vars and served no-store
        (see nginx.conf). This classic script (in the document head) runs BEFORE
        the deferred module bundles Angular injects, so the window.__HUG_*__
-       globals (the BFF URL + the session-custody flag) exist before the app
-       reads them. The nginx sub_filter tags it with the CSP nonce, and
+       globals (the BFF URL, the OIDC flag, the background settings) exist
+       before the app reads them. The nginx sub_filter tags it with the CSP nonce, and
        same-origin 'self' in script-src covers it either way.
        NOTE: keep literal tag tokens out of this comment — the Angular index
        writer injects es-module-shims config after the first such token. -->

@@ -12,12 +12,15 @@ in `tests/helpers/roles.ts`. `bddgen` compiles the features into specs below
   `/bff/*` endpoints, the loopback Studio agent, or the i18n catalog) via
   `page.route()` and run the REAL component pipeline against it:
   `appeal-contact.feature`, `appeal-submit.feature` (the "signed-in" precondition
-  is a mocked `GET /bff/session` — the session is the httpOnly cookie and nothing
-  else, so there is no storage to seed), `session-cookie.feature` (in-memory
-  cookie custody: nothing persisted, the server's roles hydrated, a second tab
-  re-hydrating over the broadcast channel without a storm, a cross-tab sign-out
-  that expires the cookie before announcing it, and a not-yet-migrated host
-  shell's `hug.session` mirror removal still reaching this tab), `mfa-enroll.feature`,
+  is a mocked `GET /bff/session` — custody is the httpOnly cookie and nothing
+  else, so there is no storage to seed), `session-cookie.feature` (cookie
+  custody plus the `hug.session` fleet mirror: no credential in web storage, the
+  server's roles hydrated and published to the mirror the not-yet-migrated
+  remotes read, a sibling remote's own reader + `adminGuard` run verbatim in the
+  page — admitting the signed-in admin, bouncing to `/login` after sign-out — a
+  second tab converging on ONE mirror value with no re-hydrate storm, a
+  cross-tab sign-out that expires the cookie before announcing it, and a
+  not-yet-migrated host shell's mirror removal still reaching this tab), `mfa-enroll.feature`,
   `mfa-challenge.feature`, `mfa-security.feature`, `login-blocked.feature`
   (banned/suspended → appeal auto-route), `login-local-roles.feature`
   (passwordless Studio role picker), `login-banner.feature` (public
@@ -33,7 +36,8 @@ in `tests/helpers/roles.ts`. `bddgen` compiles the features into specs below
   `login-native.feature` (the native username/password ALLOW path, MFA and the
   complete-registration gate), `login-deny.feature`, `error-a11y.feature`,
   `protected-route.feature` (the `registeredGuard` redirect; its ALLOW persona
-  signs in for real — there is no localStorage session to seed) and the `@cluster`
+  signs in for real — the session is never seeded from localStorage, only
+  published to it) and the `@cluster`
   twin in `login-blocked.feature` (a genuinely-blocked account auto-routed to
   appeal). They are GENERATED but runtime-skipped by the `Before` hook unless
   `E2E_LIVE=1`, so `bddgen` + `--list` still prove every step is bound while the

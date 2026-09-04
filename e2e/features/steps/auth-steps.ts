@@ -17,7 +17,7 @@ import {
   SELECTORS,
   completeMfaChallenge,
   ensureLoginFormReady,
-  readPersistedSession,
+  readFleetMirror,
   readSessionProbe,
   signIn,
   waitForSessionProbeRoles,
@@ -89,12 +89,22 @@ Then('the MFA challenge is shown', async ({ page }) => {
 
 /** Assert that the sign-in established an IN-MEMORY session carrying the
  *  expected provider string (e.g. `'password'`) — read off the non-secret
- *  `__HUG_SESSION__` probe once it has hydrated — and that NOTHING was
- *  persisted to web storage (the retired `hug.session` key stays absent). */
+ *  `__HUG_SESSION__` probe once it has hydrated — and that the `hug.session`
+ *  fleet mirror agrees with it, carrying no credential of any kind.
+ *
+ *  Custody is still the httpOnly cookie alone (login-ui #3 retired the
+ *  localStorage session MODE, and a forged mirror grants nothing — pinned in
+ *  the unit suite). The mirror is the compat TRANSPORT the not-yet-migrated
+ *  remotes read their session from, so "signed in" is only true fleet-wide when
+ *  both surfaces say so. */
 Then('the session is held in memory for the {word} provider', async ({ page }, provider: string) => {
   const session = await waitForSessionProbeRoles(page);
   expect(session.provider).toBe(provider.toLowerCase());
-  expect(await readPersistedSession(page)).toBeNull();
+  const mirror = await readFleetMirror(page);
+  expect(mirror).not.toBeNull();
+  expect(mirror?.provider).toBe(provider.toLowerCase());
+  expect(mirror?.roles).toEqual(session.roles);
+  for (const key of Object.keys(mirror ?? {})) expect(/token|secret|cookie|password/i.test(key)).toBe(false);
 });
 
 /** Assert that the login view is gone after a successful sign-in,
@@ -144,11 +154,13 @@ Then('a sign-in error is announced', async ({ page }) => {
   await expect(err).toContainText(/sign-in failed/i);
 });
 
-/** Assert that no session was established: the in-memory probe is null after
- *  a failed/refused sign-in, and nothing was persisted to web storage either. */
+/** Assert that no session was established ANYWHERE: the in-memory probe is null
+ *  after a failed/refused sign-in, and the `hug.session` fleet mirror is absent
+ *  too — a rejected sign-in must not leave the other remotes thinking someone
+ *  is signed in. */
 Then('no session is held', async ({ page }) => {
   expect(await readSessionProbe(page)).toBeNull();
-  expect(await readPersistedSession(page)).toBeNull();
+  expect(await readFleetMirror(page)).toBeNull();
 });
 
 /** Assert that the login view remains visible (a failed sign-in must NOT

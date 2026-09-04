@@ -3,9 +3,12 @@ import { Browser, BrowserContext, Page, expect } from '@playwright/test';
 /** Mirror of the NON-SECRET session metadata the app's SessionService holds in
  *  memory and mirrors onto the `__HUG_SESSION__` probe (src/app/session.service.ts
  *  `SnapSession`). Deliberately has NO token field: the browser never holds a
- *  bearer — auth rides in the httpOnly `bff_` cookie — and NOTHING about the
- *  session is persisted to web storage (login-ui #3 retired the localStorage
- *  `hug.session` mirror), so the probe is the only black-box read surface. */
+ *  bearer — auth rides in the httpOnly `bff_` cookie. login-ui #3 retired the
+ *  localStorage session MODE, not this projection: the same five non-secret
+ *  fields are also published to the `hug.session` fleet mirror
+ *  ({@link FLEET_SESSION_MIRROR_KEY}) as a compat transport for the remotes that
+ *  have not migrated. The probe is the read surface for THIS app's own state;
+ *  the mirror is what the rest of the fleet reads. */
 export interface ProbedSnapSession {
   id: string;
   label: string;
@@ -121,18 +124,25 @@ export const SELECTORS = {
 } as const;
 
 /**
- * The RETIRED localStorage key of the former session mirror (login-ui #3). The
- * app neither reads nor writes it any more; the harness reads it ONLY to prove
- * that nothing is persisted there ({@link readPersistedSession} must be null).
+ * The `hug.session` localStorage FLEET MIRROR key — a non-secret projection of
+ * the session, published by SessionService as a compat TRANSPORT (never
+ * custody) for hugmesh-host-shell and the eleven sibling remotes that still
+ * read their whole session from this key and never call `GET /bff/session`.
+ *
+ * What login-ui #3 retired is the localStorage session MODE: the app never
+ * SEEDS itself from this key, takes no roles from it, and a forged value grants
+ * nothing — only a 2xx `/bff/session` can produce a session. So the harness
+ * asserts both halves: present and carrying the SERVER's roles while signed in
+ * ({@link readFleetMirror}), and gone after a sign-out.
  */
-export const LEGACY_SESSION_KEY = 'hug.session';
+export const FLEET_SESSION_MIRROR_KEY = 'hug.session';
 
 /**
  * The NON-SECRET post-hydrate session probe the SessionService mirrors onto
- * `globalThis` (src/app/session.service.ts `SESSION_PROBE`). NOTHING is
- * persisted to web storage — the hydrated session lives only in the in-memory
- * signal — so this global is the ONLY black-box surface an e2e can read the
- * persona's roles back from. */
+ * `globalThis` (src/app/session.service.ts `SESSION_PROBE`). The hydrated
+ * session lives in the in-memory signal; the fleet mirror is an OUTBOUND
+ * transport for other apps and is never read back into it, so this global is
+ * the black-box surface for THIS app's own hydrated state. */
 export const SESSION_PROBE = '__HUG_SESSION__';
 
 /** The username typed for a fixture (defaults to its handle). */
@@ -198,12 +208,66 @@ export async function completeMfaChallenge(page: Page, passcode: string): Promis
 }
 
 /**
- * Read whatever sits under the RETIRED `hug.session` localStorage key. The
- * only correct answer is `null`: the app persists no session metadata (a
- * non-null read would mean the localStorage mode came back).
+ * Read the `hug.session` fleet mirror as the not-yet-migrated remotes would:
+ * parse it, or answer `null` when the key is absent or unparseable. This is the
+ * value hugmesh-admin-ui/mod-ui/... load their entire session from, so it is
+ * what a fleet-wide "signed in everywhere / signed out everywhere" assertion
+ * must read — the `__HUG_SESSION__` probe only proves login-ui's own state.
  */
-export async function readPersistedSession(page: Page): Promise<string | null> {
-  return await page.evaluate((key) => window.localStorage.getItem(key), LEGACY_SESSION_KEY);
+export async function readFleetMirror(page: Page): Promise<ProbedSnapSession | null> {
+  return await page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw) as ProbedSnapSession;
+    } catch {
+      return null;
+    }
+  }, FLEET_SESSION_MIRROR_KEY);
+}
+
+/** What a not-yet-migrated sibling remote decides about the current browser,
+ *  computed by {@link evaluateFleetRemoteGuard}. */
+export interface FleetRemoteVerdict {
+  loggedIn: boolean;
+  isAdmin: boolean;
+  /** `true` = the route activates; `'/login'` = the guard returned a redirect. */
+  guard: true | '/login';
+}
+
+/**
+ * Run a not-yet-migrated sibling remote's OWN session reader and route guard,
+ * verbatim, inside this page — against the real `hug.session` value login-ui
+ * published.
+ *
+ * This is the fleet contract that login-ui's `__HUG_SESSION__` probe cannot
+ * see. Every sibling remote holds its own SessionService whose sole source of
+ * truth is this key and which never calls `GET /bff/session`
+ * (hugmesh-admin-ui/mod-ui/forum-ui/user-ui/wiki-ui/tube-ui/owncast-ui/
+ * mastodon-ui/api-docs + hugmesh-host-shell), and its guards bounce on the
+ * signal that produces. The two lines below are hugmesh-admin-ui's
+ * `SessionService.load()` (`raw ? JSON.parse(raw) : null`, null on any parse
+ * error), its `isAdmin` computed (`(session?.roles ?? []).includes('admin')`)
+ * and `admin.guard.ts` (`session.isAdmin() ? true : router.parseUrl('/login')`).
+ *
+ * Asserting on this is what would have caught the role-home lockout: login-ui
+ * can be perfectly signed in on its own probe while every other role-home reads
+ * "anonymous".
+ */
+export async function evaluateFleetRemoteGuard(page: Page): Promise<FleetRemoteVerdict> {
+  return await page.evaluate((key) => {
+    // hugmesh-admin-ui SessionService.load()
+    let session: { roles?: string[] } | null = null;
+    try {
+      const raw = window.localStorage.getItem(key);
+      session = raw ? JSON.parse(raw) : null;
+    } catch {
+      session = null;
+    }
+    // ...its loggedIn / isAdmin computeds, and adminGuard's decision.
+    const isAdmin = (session?.roles ?? []).includes('admin');
+    return { loggedIn: session !== null, isAdmin, guard: isAdmin ? (true as const) : ('/login' as const) };
+  }, FLEET_SESSION_MIRROR_KEY);
 }
 
 /**

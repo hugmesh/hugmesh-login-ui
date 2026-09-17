@@ -14,6 +14,11 @@
  *   - a spec/e2e/doc mention                              -> info only (exit 0)
  *   - an acknowledged reader that migrated away           -> info; --strict exit 1
  *   - the writer deleted while readers remain             -> --self exit 1
+ *   - the writer COMMENTED OUT while readers remain        -> --self exit 1
+ *   - the writer's CALL SITE removed (dead code)           -> --self exit 1
+ *   - --allow-missing over a fleet-root with no canary     -> must exit 2
+ *   - a prefix acknowledgement broad enough to hide readers-> must exit 2
+ *   - mirror:check unwired from pretest/prebuild           -> must fail
  * plus the pure classify()/diff()/orgDiff()/selfCheck() rules.
  */
 import test from 'node:test';
@@ -26,11 +31,12 @@ import { fileURLToPath } from 'node:url';
 
 import {
   classify, diff, orgDiff, selfCheck, parseGrep, loadManifest, scanRepo, checkCanary, ROLES, EXIT,
-  DEFAULT_MANIFEST, DEFAULT_WRITER,
+  DEFAULT_MANIFEST, DEFAULT_WRITER, stripComments, enclosingFunctionName, writerLiveness,
 } from './census.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CENSUS = join(HERE, 'census.mjs');
+const REPO_ROOT = join(HERE, '..', '..');
 const KEY = 'hug.session';
 
 // ---------------------------------------------------------------------------
@@ -191,7 +197,7 @@ test('loadManifest: rejects an acknowledged repo the census never scans, an unkn
 test('selfCheck: writer gone + blocking reader = FAIL; writer gone + none = OK; writer present = OK', () => {
   const blocking = { key: KEY, repos: ['r'], canary: { repo: 'r', file: 'f' }, acknowledged: [{ repo: 'r', file: 'f', role: 'reader' }] };
   const hydrates = { key: KEY, repos: ['r'], canary: { repo: 'r', file: 'f' }, acknowledged: [{ repo: 'r', file: 'f', role: 'reader+hydrates' }] };
-  const nonBlocking = { key: KEY, repos: ['r'], canary: { repo: 'r', file: 'f' }, acknowledged: [{ repo: 'r', file: 'f', role: 'comment' }, { repo: 'r', file: 'g', role: 'writer' }, { repo: 'r', prefix: 'd/', role: 'artifact' }] };
+  const nonBlocking = { key: KEY, repos: ['r'], canary: { repo: 'r', file: 'f' }, acknowledged: [{ repo: 'r', file: 'f', role: 'comment' }, { repo: 'r', file: 'g', role: 'writer' }, { repo: 'r', prefix: 'dist/chunks/', role: 'artifact' }] };
   const writer = `const FLEET_MIRROR_KEY = 'hug.session';\nlocalStorage.setItem(FLEET_MIRROR_KEY, next);`;
   const inlined = `localStorage.setItem('hug.session', next);`;
   const gone = `// the mirror used to live here`;
@@ -316,13 +322,13 @@ test('a blind spot never masks drift: missing repo + new reader elsewhere -> exi
 
 test('a prefix acknowledgement covers hashed artefact names', () => {
   const f = mkFleet();
-  writeFiles(join(f.root, 'clean'), { 'dist/chunk-ABC123.js': `x=${JSON.stringify(KEY)};`, 'dist/chunk-DEF456.js': `y=${JSON.stringify(KEY)};` });
+  writeFiles(join(f.root, 'clean'), { 'dist/chunks/chunk-ABC123.js': `x=${JSON.stringify(KEY)};`, 'dist/chunks/chunk-DEF456.js': `y=${JSON.stringify(KEY)};` });
   commitAll(join(f.root, 'clean'), 'artefacts');
-  f.manifest.acknowledged.push({ repo: 'clean', prefix: 'dist/', role: 'artifact' });
+  f.manifest.acknowledged.push({ repo: 'clean', prefix: 'dist/chunks/', role: 'artifact' });
   writeFileSync(f.manifestPath, JSON.stringify(f.manifest));
   const r = run(f);
   assert.equal(r.code, EXIT.OK, r.out + r.err);
-  assert.match(r.out, /\[artifact\] dist\/chunk-ABC123\.js:1/);
+  assert.match(r.out, /\[artifact\] dist\/chunks\/chunk-ABC123\.js:1/);
   rmSync(f.root, { recursive: true, force: true });
 });
 
@@ -447,4 +453,138 @@ test('this test file contains no LITERAL NUL byte (it would blind grep to itself
   // test needs is written as a \u0000 escape instead.
   const raw = readFileSync(fileURLToPath(import.meta.url));
   assert.equal(raw.indexOf(0), -1, 'write NUL as a \\u0000 escape, never as a literal byte');
+});
+
+// ---------------------------------------------------------------------------
+// LIVENESS — a marker match proves the bytes are in the file, not that the
+// write happens. Both cases below were measured green against the text-only
+// check that shipped on 2026-09-17, which is why they are here.
+
+/** A writer with the real shape: the setItem sits in a method, called from another. */
+const CLASS_WRITER_SRC = [
+  "const FLEET_MIRROR_KEY = 'hug.session';",
+  'export class SessionService {',
+  '  private setSession(s) {',
+  '    this.session.set(s);',
+  '    this.publishMirror(s);',
+  '  }',
+  '  /** Publish the session to the {@link FLEET_MIRROR_KEY} mirror. */',
+  '  private publishMirror(s) {',
+  '    const next = s ? JSON.stringify(s) : null;',
+  '    if (next === null) localStorage.removeItem(FLEET_MIRROR_KEY);',
+  '    else localStorage.setItem(FLEET_MIRROR_KEY, next);',
+  '  }',
+  '}',
+].join('\n');
+
+test('stripComments: comments go; string and template literals survive intact', () => {
+  assert.equal(stripComments('a // gone\nb'), 'a \nb');
+  assert.equal(stripComments('a /* gone */ b'), 'a  b');
+  assert.equal(stripComments('a /* one\ntwo */ b'), 'a \n b');
+  assert.equal(stripComments(`const u = 'http://x//y';`), `const u = 'http://x//y';`, 'a // inside a string is not a comment');
+  assert.equal(stripComments('const t = `a /* b */ c`;'), 'const t = `a /* b */ c`;');
+  assert.equal(stripComments(`const q = 'it\\'s // fine';`), `const q = 'it\\'s // fine';`, 'an escaped quote does not end the string');
+  // line count is preserved so an offset stays on its own line
+  assert.equal(stripComments('x\n/* a\nb\nc */\ny').split('\n').length, 5);
+});
+
+test('enclosingFunctionName: method, arrow, nested block, class body, top level', () => {
+  const src = CLASS_WRITER_SRC;
+  assert.equal(enclosingFunctionName(src, src.indexOf('localStorage.setItem')), 'publishMirror');
+  assert.equal(enclosingFunctionName(src, src.indexOf('this.publishMirror')), 'setSession');
+  assert.equal(enclosingFunctionName(src, src.indexOf('const FLEET_MIRROR_KEY')), null, 'top level');
+  // an if/for block is walked THROUGH, not mistaken for the function
+  const nested = 'function outer(a) {\n  if (a) {\n    for (const x of a) {\n      HERE;\n    }\n  }\n}';
+  assert.equal(enclosingFunctionName(nested, nested.indexOf('HERE')), 'outer');
+  // a class body is not a function head
+  const cls = 'class Foo {\n  bar() {\n    HERE;\n  }\n}';
+  assert.equal(enclosingFunctionName(cls, cls.indexOf('HERE')), 'bar');
+  const arrow = 'const publish = (s) => {\n  HERE;\n};';
+  assert.equal(enclosingFunctionName(arrow, arrow.indexOf('HERE')), 'publish');
+});
+
+test('writerLiveness: a write nothing calls is NOT a live write', () => {
+  assert.equal(writerLiveness(stripComments(CLASS_WRITER_SRC)).live, true);
+  assert.equal(writerLiveness(stripComments(CLASS_WRITER_SRC)).fn, 'publishMirror');
+  const deadCode = CLASS_WRITER_SRC.replace('    this.publishMirror(s);', '    // this.publishMirror(s);');
+  const dead = writerLiveness(stripComments(deadCode));
+  assert.equal(dead.live, false);
+  assert.match(dead.reason, /nothing calls it/);
+  // module-level code needs no call site
+  assert.equal(writerLiveness("localStorage.setItem('hug.session', v);").live, true);
+});
+
+test('--self: the write COMMENTED OUT is not a write (skeptic mutation a)', () => {
+  const f = mkFleet();
+  writeFileSync(f.writer, CLASS_WRITER_SRC);
+  assert.equal(run(f, '--self').code, EXIT.OK, 'baseline: the class-shaped writer passes');
+  writeFileSync(f.writer, CLASS_WRITER_SRC.replace(
+    '    else localStorage.setItem(FLEET_MIRROR_KEY, next);',
+    '    // else localStorage.setItem(FLEET_MIRROR_KEY, next);'));
+  const r = run(f, '--self');
+  assert.equal(r.code, EXIT.DRIFT, r.out + r.err);
+  assert.match(r.out, /FAIL/);
+  assert.match(r.out, /localStorage\.setItem/);
+  rmSync(f.root, { recursive: true, force: true });
+});
+
+test('--self: the CALL SITE commented out leaves dead code, not a write (skeptic mutation b)', () => {
+  const f = mkFleet();
+  writeFileSync(f.writer, CLASS_WRITER_SRC.replace(
+    '    this.publishMirror(s);', '    // this.publishMirror(s);'));
+  const r = run(f, '--self');
+  assert.equal(r.code, EXIT.DRIFT, r.out + r.err);
+  assert.match(r.out, /FAIL/);
+  assert.match(r.out, /a live write/);
+  assert.match(r.out, /publishMirror\(\) holds the write but nothing calls it/);
+  rmSync(f.root, { recursive: true, force: true });
+});
+
+test('--allow-missing may NOT skip the canary repo: a fleet-root of nothing is exit 2, not a green census', () => {
+  const f = mkFleet();
+  const empty = mkdtempSync(join(tmpdir(), 'fleet-empty-'));
+  const r = run(f, '--fleet-root', empty, '--allow-missing');
+  assert.equal(r.code, EXIT.ERROR, r.out + r.err);
+  assert.match(r.out, /CANARY NOT SCANNED/);
+  rmSync(empty, { recursive: true, force: true });
+  rmSync(f.root, { recursive: true, force: true });
+});
+
+test('loadManifest: a prefix broad enough to blanket a source tree is refused', () => {
+  const root = mkdtempSync(join(tmpdir(), 'manifest-prefix-'));
+  const write = (m) => { const fp = join(root, 'm.json'); writeFileSync(fp, JSON.stringify(m)); return fp; };
+  const base = (prefix) => ({
+    key: KEY, repos: ['a'], canary: { repo: 'a', file: 'f' },
+    acknowledged: [{ repo: 'a', file: 'f', role: 'reader' }, { repo: 'a', prefix, role: 'artifact' }],
+  });
+  assert.throws(() => loadManifest(write(base('src/'))), /too broad/);
+  assert.throws(() => loadManifest(write(base('projects/'))), /too broad/);
+  assert.throws(() => loadManifest(write(base('dist/chunks'))), /too broad/, 'must end with a slash');
+  assert.ok(loadManifest(write(base('tests/stack/.uidist/'))), 'a specific prefix is still allowed');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('mirror:check is wired into pretest AND prebuild, not just the image build', () => {
+  // THE ENFORCEMENT POINT. Measured 2026-09-17: build:image (and the Dockerfile
+  // RUN chain) is reachable only from .gitlab-ci.yml's build:image job, whose
+  // rules are `$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` or `$CI_COMMIT_TAG` —
+  // merge_request_event is absent. So with the check reachable only from there,
+  // a pull request shaped exactly like PR #17 (delete the write plus its spec
+  // assertions) merges GREEN and the guard first fires in the post-merge image
+  // build, after the regression is on main. README.md documents the identical
+  // finding for federation:check. Do not unwire these.
+  const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+  for (const hook of ['pretest', 'prebuild']) {
+    assert.match(pkg.scripts[hook] ?? '', /\bmirror:check\b/, `package.json scripts.${hook} must run mirror:check`);
+  }
+  assert.match(pkg.scripts['build:image'] ?? '', /\bmirror:check\b/);
+  assert.match(pkg.scripts['mirror:check'] ?? '', /--self/);
+});
+
+test('THIS repo: the real writer is LIVE, not merely present', () => {
+  const src = readFileSync(DEFAULT_WRITER, 'utf8');
+  const live = writerLiveness(stripComments(src));
+  assert.equal(live.live, true, live.reason);
+  assert.equal(live.fn, 'publishMirror', 'the setItem still sits in publishMirror()');
+  assert.match(live.reason, /is called \d+ time\(s\)/);
 });

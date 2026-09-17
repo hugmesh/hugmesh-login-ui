@@ -97,8 +97,18 @@ ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 #   this repo can see it, because the readers live in other repositories. The
 #   self check fails the build whenever the write is gone from
 #   src/app/session.service.ts while tools/fleet-mirror/readers.json still lists
-#   a blocking reader. It reads two files in this tree, needs no sibling
-#   checkout and no network, so it costs the image build milliseconds.
+#   a blocking reader — "gone" meaning the comment-stripped source has no
+#   setItem of the key, OR the function holding it is never called (measured
+#   2026-09-17: against a text-only check, commenting out either the setItem or
+#   its `this.publishMirror(s)` call site left the writer "present" and exited
+#   0 while the mirror was never written). It reads two files in this tree,
+#   needs no sibling checkout and no network, so it costs the image build
+#   milliseconds.
+#   THIS IS NOT THE PRIMARY ENFORCEMENT POINT: build:image runs only on the
+#   default branch and on tags, so a pull request that deletes the write would
+#   merge green and fail here afterwards. mirror:check is therefore also wired
+#   into `pretest` and `prebuild` (package.json), which is what runs on a merge
+#   request. Keep both.
 #   `npm run mirror:census` is the full cross-repo census; it needs the sibling
 #   checkouts and therefore cannot run here.
 RUN npm run federation:check \

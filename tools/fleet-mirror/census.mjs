@@ -27,10 +27,18 @@
  *     list and fails on any repo readers.json never scans.
  *
  *   SELF CHECK (--self)  needs no sibling checkout, so it runs in the image
- *     build: while readers.json still acknowledges a BLOCKING reader (role
- *     "reader" or "reader+hydrates"), src/app/session.service.ts must still
- *     contain the writer. Deleting publishMirror() before that list is empty is
- *     exactly the #17 regression, and this is the check #17 did not have.
+ *     build AND — since 2026-09-17 — in `pretest`/`prebuild`, so a PULL REQUEST
+ *     is where it fires, not the post-merge image build (see package.json and
+ *     README "It is wired into pretest and prebuild"). While readers.json still
+ *     acknowledges a BLOCKING reader (role "reader" or "reader+hydrates"),
+ *     src/app/session.service.ts must still write the mirror, and the write must
+ *     be LIVE: the source is comment-stripped first, and the function holding
+ *     the setItem must actually be called. Measured 2026-09-17 — against a
+ *     text-only check, commenting out `localStorage.setItem(FLEET_MIRROR_KEY,
+ *     next)` OR commenting out its `this.publishMirror(s)` call site both left
+ *     the writer "present" and exited 0 while the mirror was never written.
+ *     Deleting publishMirror() before that list is empty is exactly the #17
+ *     regression, and this is the check #17 did not have.
  *
  * WHY `git grep --text`. GNU grep skips a file that contains a NUL byte and
  * exits 1 — indistinguishable from a genuine miss — so a grep-based audit fails
@@ -42,9 +50,15 @@
  * assembles it from pieces ('hug' + '.session') is invisible, and so is a
  * reader in a repo readers.json does not list (--org covers the org, not a
  * clone someone made outside it). Comment-only mentions in production paths
- * match too — they are acknowledged with role "comment" rather than stripped,
- * because a comment stripper that guesses at syntax is a second way to fail
- * open.
+ * match too — in the CENSUS direction they are acknowledged with role "comment"
+ * rather than stripped, because there an over-strip HIDES a reader (fails open).
+ * The --self direction is the mirror image — there an over-strip only raises a
+ * false alarm — so it does strip, see stripComments(). The census also reads
+ * each sibling's LOCAL origin/<default> ref and never fetches: a sibling whose
+ * origin ref is stale narrows the scan while still printing an authoritative
+ * SHA, so fetch the fleet before trusting a census (measured 2026-09-17:
+ * 39/39 local origin refs equalled the true remote head on that box, which is a
+ * property of that box on that day, not of this tool).
  *
  * Exit codes: 0 clean · 1 drift (new reader; with --strict any drift; --self
  * writer missing while readers remain) · 2 usage / environment error (a
@@ -156,6 +170,16 @@ export function loadManifest(path) {
     const hasFile = typeof e.file === 'string' && e.file.length > 0;
     const hasPrefix = typeof e.prefix === 'string' && e.prefix.length > 0;
     if (hasFile === hasPrefix) throw new Error(`${where}: exactly one of "file" or "prefix" is required`);
+    // A prefix acknowledgement is the one entry shape that can NEVER be
+    // re-flagged: every future file under it is covered in advance. "src/"
+    // would blanket-acknowledge a whole repo's production tree, so a prefix
+    // must name a directory BELOW a top level one and end in '/'.
+    if (hasPrefix) {
+      const segs = e.prefix.split('/').filter(Boolean);
+      if (!e.prefix.endsWith('/') || segs.length < 2) {
+        throw new Error(`${where}: prefix "${e.prefix}" is too broad — a prefix must end with "/" and name at least two path segments (e.g. "dist/chunks/"), because everything under it is acknowledged in advance and can never be re-flagged as a NEW READER. List the files individually instead.`);
+      }
+    }
   });
   m.ignoredRepos = m.ignoredRepos && typeof m.ignoredRepos === 'object' ? m.ignoredRepos : {};
   const c = m.canary;
@@ -184,9 +208,17 @@ export function loadManifest(path) {
  * that is an environment error (exit 2), never fleet progress. Returns null when
  * the canary held, or a message when it did not.
  */
-export function checkCanary(census, manifest) {
+export function checkCanary(census, manifest, missing = []) {
   const { repo, file } = manifest.canary;
   const scanned = census.find((r) => r.repo === repo);
+  // Not checked out AND known to be missing: --allow-missing would otherwise
+  // downgrade that to a warning and the run would report a green census over
+  // nothing. Measured 2026-09-17: `--fleet-root /tmp/empty --allow-missing`
+  // gave `repos=0 missing=39 newReaders=0 ... -> exit 0`. Without the canary
+  // there is no evidence the scan works at all, so that is exit 2.
+  if (!scanned && missing.includes(repo)) {
+    return `CANARY NOT SCANNED: ${repo} is not checked out, so nothing proves this census can find '${manifest.key}' at all. Every "MIGRATED" line below is an artefact of a scan that searched nothing. --allow-missing may not skip the canary repo.`;
+  }
   if (!scanned) return null; // not checked out: already reported as a blind spot
   if (scanned.files.some((f) => f.file === file)) return null;
   return `CANARY FAILED: ${repo}/${file} does not contain '${manifest.key}' at ${scanned.ref} ${scanned.sha ? scanned.sha.slice(0, 12) : '-'}. That file is the fleet's writer and must always match, so the SCAN is broken — a wrong "key" in readers.json, a --fleet-root that is not the fleet, or a git grep that failed. Every "MIGRATED" line below is an artefact of that, not progress.`;
@@ -221,6 +253,94 @@ export function orgDiff(orgRepoNames, manifest) {
   return orgRepoNames.filter((n) => !known.has(n)).sort();
 }
 
+/**
+ * Strip line and block comments, leaving string and template literals intact.
+ *
+ * DIRECTION OF ERROR, deliberately opposite to the census. In the CENSUS an
+ * over-strip HIDES a reader — it fails open — which is why the census does not
+ * strip and acknowledges comment matches with a role instead. In --self an
+ * over-strip can only delete a marker the guard needs, i.e. raise a FALSE
+ * ALARM, and an UNDER-strip is the measured fail-open: commented-out code read
+ * as a live write. So here we strip, and we strip greedily.
+ *
+ * Newlines inside a stripped comment are kept so byte offsets stay on their
+ * own lines. KNOWN LIMIT: a comment inside a template literal's interpolation
+ * survives (the whole template is treated as one string) — that
+ * is the under-strip direction, so state it rather than guess at a parser.
+ */
+export function stripComments(src) {
+  let out = '';
+  const n = src.length;
+  let i = 0;
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === '/' && d === '/') {
+      while (i < n && src[i] !== '\n') i++;
+      continue; // the '\n' itself is copied by the next iteration
+    }
+    if (c === '/' && d === '*') {
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) {
+        if (src[i] === '\n') out += '\n';
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      out += c;
+      i++;
+      while (i < n) {
+        if (src[i] === '\\') { out += src.slice(i, i + 2); i += 2; continue; }
+        out += src[i];
+        const done = src[i] === c;
+        i++;
+        if (done) break;
+      }
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/** Statement keywords whose `(...) {` head is a BLOCK, never a function. */
+const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'do', 'with', 'return']);
+/** `name(args) {`, `private name(args): T {`, `function name(args) {`. */
+const METHOD_HEAD = /([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*(?::[^(){}]*)?\s*$/;
+/** `const name = (args) => {`, `name = async (args): T => {`. */
+const ARROW_HEAD = /([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?\([^()]*\)\s*(?::[^(){}=]*)?=>\s*$/;
+
+/**
+ * The name of the innermost function or method whose body encloses `index`, or
+ * null when `index` sits at module top level (or in a shape neither head
+ * matches). Walks backwards balancing braces: a '}' opens a sibling block, a
+ * '{' at depth 0 is an enclosing body, and a head that is a class body or an
+ * `if`/`for` block is skipped and the walk continues outwards.
+ *
+ * Only ever used on comment-stripped source. A brace inside a string literal
+ * would skew the walk; the consequence is a wrong or null name, which makes the
+ * liveness check below either raise a false alarm or fall back to "top level" —
+ * never a silent pass over a deleted call site, because a deleted setItem is
+ * caught by its own marker regardless.
+ */
+export function enclosingFunctionName(src, index) {
+  let depth = 0;
+  for (let i = index; i >= 0; i--) {
+    const c = src[i];
+    if (c === '}') { depth++; continue; }
+    if (c !== '{') continue;
+    if (depth > 0) { depth--; continue; }
+    const head = src.slice(Math.max(0, i - 400), i);
+    const m = ARROW_HEAD.exec(head) ?? METHOD_HEAD.exec(head);
+    if (m && !NOT_A_FUNCTION.has(m[1])) return m[1];
+    // a class body, an object literal, an `if`/`for` block: keep walking out
+  }
+  return null;
+}
+
 /** The markers that prove this repo still writes the mirror. Either spelling of
  *  the key in the setItem call counts, so a refactor that inlines the constant
  *  does not trip the guard while the write is still there. */
@@ -229,30 +349,61 @@ const WRITER_MARKERS = [
   { name: 'a localStorage.setItem of the key', re: /localStorage\s*\.\s*setItem\s*\(\s*(FLEET_MIRROR_KEY|(['"])hug\.session\2)/ },
 ];
 
+const SET_ITEM = /localStorage\s*\.\s*setItem\s*\(\s*(?:FLEET_MIRROR_KEY|(['"])hug\.session\1)/;
+
+/**
+ * IS THE WRITE LIVE? A marker match only proves the bytes are in the file. The
+ * measured hole (2026-09-17, both mutations green against the text-only check):
+ * comment out the `this.publishMirror(s)` CALL SITE and publishMirror becomes
+ * dead code — the mirror is never written, every marker still matches, exit 0.
+ *
+ * So: find the setItem, find the function that holds it, and require that
+ * function to be CALLED somewhere else in the file. Its own declaration is one
+ * occurrence of `name(`, so a live writer has at least two. A setItem at module
+ * top level runs on import and needs no call site.
+ */
+export function writerLiveness(strippedSource) {
+  const m = SET_ITEM.exec(strippedSource);
+  if (!m) return { live: false, fn: null, reason: 'there is no localStorage.setItem of the key at all' };
+  const fn = enclosingFunctionName(strippedSource, m.index);
+  if (!fn) return { live: true, fn: null, reason: 'the write is module-level code' };
+  const escaped = fn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const calls = strippedSource.match(new RegExp(`\\b${escaped}\\s*\\(`, 'g')) ?? [];
+  if (calls.length < 2) {
+    return { live: false, fn, reason: `${fn}() holds the write but nothing calls it — the only occurrence of "${fn}(" is its own declaration, so the mirror is never written` };
+  }
+  return { live: true, fn, reason: `${fn}() holds the write and is called ${calls.length - 1} time(s)` };
+}
+
 /**
  * SELF CHECK: the write may not be deleted while readers.json still holds a
  * blocking reader. Pure: takes the writer source text and the manifest.
+ * Comments are stripped first — see stripComments() for why that is the right
+ * direction here and the wrong one in the census.
  */
 export function selfCheck(writerSource, manifest) {
-  const missing = WRITER_MARKERS.filter((m) => !m.re.test(writerSource)).map((m) => m.name);
+  const src = stripComments(writerSource);
+  const missing = WRITER_MARKERS.filter((m) => !m.re.test(src)).map((m) => m.name);
+  const liveness = writerLiveness(src);
+  if (missing.length === 0 && !liveness.live) missing.push(`a live write (${liveness.reason})`);
   const writerPresent = missing.length === 0;
   const blocking = manifest.acknowledged.filter((e) => ROLES[e.role].blocking);
   if (!writerPresent && blocking.length > 0) {
     return {
-      ok: false, writerPresent, blocking,
+      ok: false, writerPresent, blocking, liveness,
       message: `the hug.session write is GONE from session.service.ts (missing: ${missing.join('; ')}) while readers.json still acknowledges ${blocking.length} blocking reader(s). This is the PR #17 regression: every one of them would see an anonymous session after a successful sign-in. Migrate them (hugmesh-login-ui #18) and prune readers.json BEFORE deleting the write.`,
     };
   }
   if (writerPresent && blocking.length === 0) {
     return {
-      ok: true, writerPresent, blocking,
+      ok: true, writerPresent, blocking, liveness,
       message: 'readers.json acknowledges NO blocking reader: the hug.session write in session.service.ts may now be deleted (hugmesh-login-ui #18, final box). Run the full census first to confirm the list is current.',
     };
   }
   if (!writerPresent) {
-    return { ok: true, writerPresent, blocking, message: 'the hug.session write is gone and no blocking reader remains — the retirement is complete.' };
+    return { ok: true, writerPresent, blocking, liveness, message: 'the hug.session write is gone and no blocking reader remains — the retirement is complete.' };
   }
-  return { ok: true, writerPresent, blocking, message: `writer present; ${blocking.length} blocking reader(s) still acknowledged — the write stays.` };
+  return { ok: true, writerPresent, blocking, liveness, message: `writer present and live (${liveness.reason}); ${blocking.length} blocking reader(s) still acknowledged — the write stays.` };
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +535,7 @@ export function runCensus(o, log) {
     census.push({ repo, dir, ...scan });
   }
   const d = diff(census, manifest);
-  const canaryError = checkCanary(census, manifest);
+  const canaryError = checkCanary(census, manifest, missing);
   let unlisted = [];
   if (o.org) unlisted = orgDiff(orgRepoNames(o.org), manifest);
 

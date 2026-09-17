@@ -74,7 +74,7 @@
     { "repo": "hugmesh-host-shell", "file": "src/app/session.service.ts", "role": "reader+hydrates", "line": 70,
       "note": "seeds signal(this.load()) from the key (:93), hydrate() reads /bff/session (:225) but falls back to load() on an inconclusive read (:260); set()/clear() also WRITE the key (:285/:313); cross-tab via the storage event only, no BroadcastChannel" },
     { "repo": "hugmesh-host-shell", "file": "src/app/account-status/account-status.service.ts", "role": "writer", "line": 94,
-      "note": "syncs GET /bff/me status into the key via SessionService.patch({status}) (:101) — a second fleet writer" },
+      "note": "syncs GET /bff/me status into the key via SessionService.patch({status}) (:103 -> host-shell session.service.ts :286 patch() -> :285 set() -> localStorage.setItem) — a second fleet writer" },
 
     { "repo": "hugmesh-admin-ui", "file": "src/app/session.service.ts", "role": "reader", "line": 45,
       "note": "load() is the sole session source; no /bff/session read; adminGuard/superadminGuard/gamesServicesGuard bounce on it" },

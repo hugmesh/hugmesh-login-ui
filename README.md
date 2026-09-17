@@ -212,7 +212,9 @@ its own in that state because what "back" means belongs to the surface that embe
 **What the consumer must provide:** `provideHttpClient()` in its root injector (the generated
 `/bff/mfa/*` client is `providedIn: 'root'` and credentials ride on a per-request `HttpContext`
 token, not an interceptor, precisely so it works under someone else's `HttpClient`);
-`globalThis.__HUG_BFF_URL__` set before the module is imported, since it is read at module scope;
+`globalThis.__HUG_BFF_URL__` **only if the BFF is not same-origin** — it is read at module scope
+and defaults to `''`, which makes every call root-relative (`/bff/mfa/challenge`), and that is the
+working path under the host shell, where nothing sets the global today;
 the `--hug-*` theme custom properties on the page (the host shell defines all eight this surface
 uses, and so do forum-ui, mod-ui and wiki-ui standalone); and a CSP that admits this remote's
 same-origin chunks plus the `blob:` that es-module-shims needs in `script-src`/`style-src`/

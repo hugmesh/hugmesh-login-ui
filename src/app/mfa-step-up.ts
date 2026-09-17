@@ -75,10 +75,14 @@
  *    credentials ride on a per-request `HttpContext` token, not an interceptor,
  *    precisely so this works under someone else's HttpClient (see
  *    `http/bff-credentials.ts`).
- *  • `globalThis.__HUG_BFF_URL__`, the BFF origin, set before the module is
- *    imported — it is read at module scope. The host shell's runtime config
- *    already sets it; a standalone consumer dev shell must set it too or every
- *    call goes to a relative path.
+ *  • `globalThis.__HUG_BFF_URL__` ONLY IF THE BFF IS NOT SAME-ORIGIN. It is read
+ *    at module scope and defaults to `''`, which leaves every call ROOT-relative
+ *    (`/bff/mfa/challenge`) — and that is the working path under the host shell,
+ *    whose index.html sets no such global today (measured 2026-09-16: the only
+ *    runtime injection in hugmesh-host-shell is its theme). A standalone consumer
+ *    dev shell pointed at a remote mesh is the case that needs it set. Note this
+ *    is root-relative, not document-relative, so it resolves against the ORIGIN
+ *    and not against whatever path the consumer happens to be mounted at.
  *  • the `--hug-*` theme custom properties on the page. The component's own
  *    styles travel with it, but they reference the fleet's token contract, which
  *    is a GLOBAL stylesheet. The host shell defines all eight tokens this

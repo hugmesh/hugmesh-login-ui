@@ -24,15 +24,30 @@
  *     imports '@angular/localize/init'; this one pins that every entry point
  *     actually reaches it.
  *
- *   GATE C  A ROUTER INSIDE THE EMBEDDED STEP-UP GRAPH
+ *   GATE C  ANYTHING THAT NAVIGATES INSIDE THE EMBEDDED STEP-UP GRAPH
  *     `./mfa-step-up` is rendered INSIDE another remote, under the HOST SHELL's
- *     router, which is rooted at `/`. An absolute `routerLink`, or any
- *     `router.navigate` at all, therefore moves the consumer's whole page — the
- *     second of the four federated-remote URL traps this fleet has already paid
- *     for (`project_hugmesh_federated_remote_url_traps`: "links bounce to /user").
+ *     router, which is rooted at `/`. An absolute `routerLink`, any
+ *     `router.navigate` at all, a raw `location.href = …` or a plain
+ *     `<a href="/…">` therefore moves the consumer's whole page — the second of
+ *     the four federated-remote URL traps this fleet has already paid for
+ *     (`project_hugmesh_federated_remote_url_traps`: "links bounce to /user").
  *     It is invisible in this repo, because standalone the remote IS the page.
- *     So: nothing reachable from that entry point may import '@angular/router',
- *     and no template in its graph may carry a routerLink.
+ *     So, for everything reachable from that entry point:
+ *       C1  no module may import '@angular/router';
+ *       C2  no template may carry a routerLink — INLINE `template:` literals
+ *           included, not just `templateUrl:` files (an inline template is in
+ *           the graph exactly as much as a linked one, and checking only the
+ *           linked ones let a `template: '<a routerLink="/">'` through);
+ *       C3  no module may call a raw navigation primitive — `location.href =`,
+ *           `location.assign/replace`, `window.open`, `history.pushState/
+ *           replaceState`. `@angular/router` is not the only way to move a page,
+ *           and the component docstring's claim ("IT NAVIGATES NOWHERE, BY
+ *           CONSTRUCTION") is only worth what this gate enforces;
+ *       C4  no template may carry an ABSOLUTE `href` ("/…" or "http…"), which
+ *           is a full page load out of the consumer's view.
+ *     C2/C3/C4 exist because a skeptic pass proved C1-as-shipped exited 0 on
+ *     both `template: '<a routerLink="/">bounce</a>'` and
+ *     `window.location.href = '/'` inside the embedded component.
  *
  *   GATE E  AN EXPOSED ENTRY THAT IS NOT IN THE TYPESCRIPT PROGRAM
  *     The Angular compiler only sees files reachable from a program ROOT. The
@@ -52,6 +67,19 @@
  *     remoteName/exposedModule pair this repo PUBLISHES to consumers, in
  *     `MFA_STEP_UP_REMOTE`, must equal what federation.config.js actually
  *     declares.
+ *
+ * WHERE THIS RUNS, AND WHY THAT MATTERS. `pretest` and `prebuild` in package.json
+ * both invoke it, so `npm test` and `npm run build` — the two commands a
+ * contributor actually types — fail on a contract break. `build:image` and the
+ * Dockerfile RUN invoke it too. That wiring is load-bearing and was added after a
+ * skeptic pass measured the alternative: with the gate reachable ONLY from
+ * `build:image`, a component that re-acquired a Router AND called
+ * `router.navigateByUrl('/login/security')` on the success path produced
+ * `TOTAL: 467 SUCCESS` from `npx ng test` and `Application bundle generation
+ * complete` from `npx ng build`. No unit spec can close that hole — Angular's
+ * Router is root-providable (`ɵprov` on the class), so `inject(Router)` resolves
+ * in a TestBed with no `provideRouter` and throws nothing. THIS FILE IS THE
+ * ENFORCEMENT. Do not unwire it from pretest/prebuild.
  *
  * The walker below follows RELATIVE imports only (a bare specifier is a package,
  * not our code) plus each component's `templateUrl`. It FAILS on an import it
@@ -128,6 +156,7 @@ function resolveRelative(fromFile, spec) {
 function walk(entry) {
   const ts = new Set();
   const html = new Set();
+  const inline = [];
   const packages = new Set();
   const queue = [entry];
   while (queue.length > 0) {
@@ -160,8 +189,15 @@ function walk(entry) {
       }
       html.add(t);
     }
+    // An INLINE `template:` literal is markup in this graph exactly as much as a
+    // linked .html file is. Checking only templateUrl let a routerLink through.
+    // `\btemplate` cannot match inside `templateUrl` (the ':' would have to
+    // follow 'template' directly), so the two collectors do not overlap.
+    for (const m of code.matchAll(/\btemplate\s*:\s*(['"`])([\s\S]*?)\1/g)) {
+      inline.push({ file, markup: m[2] });
+    }
   }
-  return { ts, html, packages };
+  return { ts, html, inline, packages };
 }
 
 // ---------------------------------------------------------------- GATE A
@@ -211,12 +247,45 @@ if (embedded) {
         `consumer's whole page. Navigation belongs to the caller.`);
     }
   }
-  for (const t of embedded.html) {
-    const markup = readFileSync(t, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  // C2 + C4 — every template in the graph, linked OR inline.
+  const templates = [
+    ...[...embedded.html].map((t) => ({ where: rel(t), markup: readFileSync(t, 'utf8') })),
+    ...embedded.inline.map((t) => ({ where: `${rel(t.file)} (inline template)`, markup: t.markup })),
+  ];
+  for (const { where, markup: raw } of templates) {
+    const markup = raw.replace(/<!--[\s\S]*?-->/g, '');
     if (/\brouterLink\b/.test(markup)) {
-      fail('C', `${rel(t)} carries a routerLink and is reachable from the embedded ` +
+      fail('C', `${where} carries a routerLink and is reachable from the embedded ` +
         `'${EMBEDDED_EXPOSE}' entry. Under the host shell that link resolves against the SHELL's ` +
         `router, not the consumer's view — the "links bounce to /user" trap.`);
+    }
+    const href = markup.match(/\bhref\s*=\s*['"](\/[^'"]*|https?:\/\/[^'"]*)['"]/);
+    if (href) {
+      fail('C', `${where} carries an absolute href ${JSON.stringify(href[1])} and is reachable ` +
+        `from the embedded '${EMBEDDED_EXPOSE}' entry. A plain absolute link is a FULL PAGE LOAD ` +
+        `out of the consumer's view — the same trap as a routerLink, without the router. ` +
+        `Emit an output and let the caller decide where to go.`);
+    }
+  }
+
+  // C3 — a router is not the only way to move a page.
+  const NAVIGATION_PRIMITIVES = [
+    [/\blocation\s*\.\s*href\s*=(?!=)/, 'location.href = …'],
+    [/\blocation\s*\.\s*(?:assign|replace)\s*\(/, 'location.assign()/location.replace()'],
+    [/\bwindow\s*\.\s*location\s*=(?!=)/, 'window.location = …'],
+    [/\bwindow\s*\.\s*open\s*\(/, 'window.open()'],
+    [/\bhistory\s*\.\s*(?:pushState|replaceState)\s*\(/, 'history.pushState()/replaceState()'],
+  ];
+  for (const f of embedded.ts) {
+    if (!existsSync(f)) continue;
+    const code = stripComments(readFileSync(f, 'utf8'));
+    for (const [re, name] of NAVIGATION_PRIMITIVES) {
+      if (re.test(code)) {
+        fail('C', `${rel(f)} calls ${name}, and it is reachable from the embedded ` +
+          `'${EMBEDDED_EXPOSE}' entry. That moves the consumer's whole page just as surely as a ` +
+          `Router does — and leaves this remote's own bundle behind. Navigation belongs to the ` +
+          `caller: emit an output instead.`);
+      }
     }
   }
 }
@@ -273,6 +342,7 @@ if (failures.length > 0) {
 }
 console.log(
   `[federation] check passed — exposes ${JSON.stringify(Object.keys(exposes))}; ` +
-  `every entry installs $localize and is in the TS program; '${EMBEDDED_EXPOSE}' is ` +
-  `router-free; remote name agrees.`,
+  `every entry installs $localize and is in the TS program; '${EMBEDDED_EXPOSE}' imports no ` +
+  `router, carries no routerLink or absolute href (linked AND inline templates) and calls no ` +
+  `raw navigation primitive; remote name agrees.`,
 );

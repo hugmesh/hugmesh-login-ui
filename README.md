@@ -160,11 +160,21 @@ It is a native-federation **remote** named `login`, and it exposes two modules.
 | `./routes`      | the login / registration / appeal / MFA routes, mounted at `/login` | hugmesh-host-shell |
 | `./mfa-step-up` | the MFA step-up challenge, rendered **in place** by another remote | forum, mod, wiki |
 
-`npm run federation:check` is the build gate over both: it fails on a missing or renamed expose, an
+`npm run federation:check` is the build gate over both. It fails on a missing or renamed expose, an
 exposed entry that never installs `$localize`, an exposed entry that is not a TypeScript program
-root, an `@angular/router` import or a `routerLink` anywhere in the embedded module's graph, and a
-remote name that disagrees with what this repo publishes. It runs in the Dockerfile before the
-build, so none of those can reach an image.
+root, a remote name that disagrees with what this repo publishes, and — anywhere in the **embedded**
+module's graph — an `@angular/router` import, a `routerLink` in any template (linked **or inline**),
+an absolute `href`, or a raw navigation primitive (`location.href =`, `location.assign/replace`,
+`window.open`, `history.pushState/replaceState`). A router is not the only way to move a page.
+
+**It is wired into `pretest` and `prebuild`, not just the Dockerfile, and that matters.** This gate
+is the *only* enforcement of the router-free contract: a unit spec cannot see the break, because
+Angular's `Router` is root-providable, so `inject(Router)` resolves in a TestBed with no
+`provideRouter` and throws nothing. Measured: with the gate reachable only from `build:image`, a
+component that re-acquired a `Router` and called `router.navigateByUrl('/login/security')` on the
+success path gave `TOTAL: 467 SUCCESS` from `ng test` and a clean `ng build`. With the hooks in
+place the same mutation fails `npm test` and `npm run build` with `[C] … imports '@angular/router'`.
+Do not unwire them.
 
 ### The federated MFA step-up challenge (`./mfa-step-up`)
 

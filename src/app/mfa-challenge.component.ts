@@ -76,6 +76,15 @@ export class MfaChallengeComponent {
    * must be closable, and a consumer that forgot to ask for the button would
    * otherwise strand the user. The routed page opts OUT (`[cancellable]="false"`)
    * and keeps its own back link, so that surface is unchanged.
+   *
+   * IT DOES NOT COVER THE DARK STATE, and that is worth saying out loud because
+   * dark is the only state reachable while MFA ships dark org-wide. The dark
+   * branch renders no affordance at all, by the deliberate decision recorded in
+   * the class docstring above ("what 'back' means belongs to the surface that
+   * embedded this"), so this default rescues a forgetful consumer in the
+   * CHALLENGE state only. A consumer that ignores `(unavailable)` is still
+   * stranded. Changing that is a product decision, not a bug fix — it is
+   * recorded on login-ui#20 rather than taken here.
    */
   readonly cancellable = input<boolean>(true);
 

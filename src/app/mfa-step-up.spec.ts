@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { MfaChallengeComponent } from './mfa-challenge.component';
 import { MfaService } from './mfa.service';
@@ -89,5 +90,23 @@ describe('./mfa-step-up (the exposed federation module)', () => {
     expect(typeof fixture.componentInstance.satisfied.subscribe).toBe('function');
     expect(typeof fixture.componentInstance.dismissed.subscribe).toBe('function');
     expect(typeof fixture.componentInstance.unavailable.subscribe).toBe('function');
+  });
+
+  it('renders on the REAL MfaService -> SessionService -> generated-client chain', async () => {
+    // The spec above stubs MfaService, which short-circuits the very chain the
+    // "only HttpClient-level providers" claim is ABOUT. This one supplies nothing
+    // but provideHttpClient() — no router, no login-ui bootstrap, no stubs — so a
+    // future dependency added anywhere in that chain that the consumer's injector
+    // cannot satisfy fails HERE instead of in somebody else's console.
+    await TestBed.configureTestingModule({
+      imports: [MfaStepUpComponent],
+      providers: [provideHttpClient()],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(MfaStepUpComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="mfa-challenge-view"]')).toBeTruthy();
+    // cancellable defaults TRUE, so the embedded use is closable out of the box.
+    expect(el.querySelector('[data-testid="mfa-challenge-cancel"]')).toBeTruthy();
   });
 });

@@ -65,8 +65,21 @@
  *
  *   [action]       optional short verb phrase naming the pending action, e.g.
  *                  "lock this topic". Default '' renders no extra sentence.
- *   [cancellable]  default TRUE — the "Not now" button. Only the routed page
- *                  turns it off.
+ *                  CAVEAT: it is spliced into a TRANSLATED frame ("You asked to
+ *                  {action}."), but you supply raw English from your own repo.
+ *                  On a translated page the frame translates and your phrase does
+ *                  not, and "You asked to <phrase>" does not compose
+ *                  grammatically in every shipped locale. Prefer leaving it empty
+ *                  until this takes a message id instead of a string.
+ *   [cancellable]  default TRUE — the "Not now" button, so an embedded dialog is
+ *                  always closable. NOTE THE LIMIT: the button lives in the
+ *                  CHALLENGE state only. The terminal DARK state renders no
+ *                  affordance at all (see `unavailable` above) — deliberately,
+ *                  because what "back" means there belongs to you — and dark is
+ *                  the ONLY state reachable while MFA ships dark org-wide. So
+ *                  subscribe to `(unavailable)` and unmount: `cancellable` will
+ *                  not rescue a consumer that ignores it. Only the routed page
+ *                  turns the button off.
  *
  * ── What the consumer must provide ────────────────────────────────────────
  *
@@ -87,6 +100,17 @@
  *    styles travel with it, but they reference the fleet's token contract, which
  *    is a GLOBAL stylesheet. The host shell defines all eight tokens this
  *    surface uses, and so do forum-ui, mod-ui and wiki-ui standalone.
+ *  • somewhere to put a module that is NOT side-effect-free. Loading
+ *    `./mfa-step-up` constructs login-ui's own `SessionService` (it is in the
+ *    exposed graph via `mfa.service.ts`), whose constructor opens a
+ *    BroadcastChannel, adds `storage` and same-document listeners to `window`,
+ *    and publishes an empty session to `globalThis.__HUG_SESSION__`. Those
+ *    listeners can issue a credentialed `GET /bff/session` on a cross-tab
+ *    storage event. Measured harmless to the fleet session mirror: the
+ *    `hug.session` localStorage mirror is only ever WRITTEN from `setSession()`,
+ *    which the challenge path never calls, and `__HUG_SESSION__` is read nowhere
+ *    outside login-ui. Load the module when you need the dialog, not eagerly at
+ *    consumer bootstrap.
  *  • a CSP that admits this remote's chunks. They are fetched from the same
  *    origin through the fe-gateway, so `script-src 'self'` covers them — but
  *    `blob:` is still required in script-src/style-src/connect-src for

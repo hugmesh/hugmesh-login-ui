@@ -10,6 +10,8 @@
     "build": "ng build login",
     "build:login": "ng build login",
     "test": "ng test login --watch=false --browsers=ChromeHeadlessCI",
+    "pretest": "npm run federation:check",
+    "prebuild": "npm run federation:check",
     "test:watch": "ng test login",
     "i18n:extract": "ng extract-i18n login --format=xlf2 --output-path=src/locale --out-file=messages.xlf",
     "i18n:pseudo": "node tools/i18n/make-pseudo.mjs",

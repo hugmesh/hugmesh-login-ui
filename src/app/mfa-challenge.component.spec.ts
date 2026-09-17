@@ -18,12 +18,30 @@ function err<T>(status: number): MfaResult<T> {
  * `/login/mfa/challenge` page and the federated `./mfa-step-up` module that
  * forum, mod and wiki embed (generator#347 decision 21).
  *
- * NOTE WHAT THIS TestBed DOES NOT PROVIDE: there is no `provideRouter`. That is
- * the point, and it is an assertion, not an omission — an embedded copy runs
- * inside a consumer's own view where the injected Router would be the HOST
- * SHELL's, rooted at '/'. If this component ever re-acquires a Router, every
- * spec in this file fails with NullInjectorError rather than silently shipping a
- * dialog that navigates the consumer's page out from under it.
+ * WHAT ENFORCES THE ROUTER-FREE CONTRACT, AND WHAT DOES NOT.
+ *
+ * This TestBed deliberately provides no `provideRouter`, but DO NOT READ THAT AS
+ * A GUARANTEE — it is not one, and an earlier draft of this comment claimed it
+ * was. Angular's `Router` is root-providable (`static ɵprov` on the class), so
+ * `inject(Router)` resolves in a TestBed with no router configuration at all and
+ * throws no NullInjectorError. Measured on this branch: adding
+ * `private readonly router = inject(Router)` to the component AND
+ * `void this.router.navigateByUrl('/login/security')` to the success path still
+ * produced `TOTAL: 467 SUCCESS`. A unit spec cannot see this regression.
+ *
+ * THE ENFORCEMENT IS `npm run federation:check`
+ * (tools/federation/check-exposes.mjs, GATE C), which walks the whole module
+ * graph reachable from the exposed `./mfa-step-up` entry and fails the build on
+ * an `@angular/router` import, a routerLink in any template (linked or inline),
+ * an absolute href, or a raw navigation primitive. It is wired into `pretest`
+ * and `prebuild`, so `npm test` and `npm run build` DO fail on the mutation
+ * above — just from the gate, not from this file. That wiring is the guarantee;
+ * keep it.
+ *
+ * What this file CAN and does pin is the runtime half the gate cannot see: that
+ * no terminal path here reaches for a spyable navigation API. (`location.href =`
+ * is not spyable in a Karma browser without reloading the runner, so it is left
+ * to GATE C's static check.)
  */
 describe('MfaChallengeComponent (the shared, embeddable step-up challenge)', () => {
   let fixture: ComponentFixture<MfaChallengeComponent>;
@@ -63,10 +81,35 @@ describe('MfaChallengeComponent (the shared, embeddable step-up challenge)', () 
     expect(component.codeValid()).toBeFalse();
   });
 
-  it('constructs with NO router in the injector (the embedded contract)', () => {
-    // Belt and braces next to the file-level note: a Router dependency would have
-    // thrown during createComponent above.
-    expect(component).toBeTruthy();
+  it('drives every terminal path without touching a navigation API', async () => {
+    const open = spyOn(window, 'open').and.stub();
+    const push = spyOn(History.prototype, 'pushState').and.stub();
+    const replace = spyOn(History.prototype, 'replaceState').and.stub();
+
+    // success
+    component.code = '123456';
+    mfa.challenge.and.resolveTo(ok({ mfaSatisfied: true }));
+    await component.submitCode();
+    // rejection
+    component.code = '000000';
+    mfa.challenge.and.resolveTo(err(401));
+    await component.submitCode();
+    // dark, via both entry points
+    component.code = '123456';
+    mfa.challenge.and.resolveTo(dark());
+    await component.submitCode();
+    (component as unknown as { webauthnAvailable: boolean }).webauthnAvailable = true;
+    mfa.assertWebauthnOptions.and.resolveTo(dark());
+    await component.useWebauthn();
+    // dismissal
+    component.cancel();
+    fixture.detectChanges();
+
+    expect(open).withContext('window.open would open the consumer out of its page').not
+      .toHaveBeenCalled();
+    expect(push).withContext('history.pushState would move the consumer\'s URL').not
+      .toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('renders no routerLink anywhere (an absolute link would move the host page)', () => {

@@ -50,6 +50,27 @@ ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 # 404 and Angular never boots. Pairs with the fe-gateway StripPrefix=1 on the /login
 # route (hugmesh-generator) which maps /login/<asset> back to the webroot here.
 #
+# federation:check runs FIRST (see package.json `build:image`): this remote
+# publishes two modules over native federation — `./routes` and `./mfa-step-up`,
+# the one MFA step-up challenge forum/mod/wiki load in place (generator#347
+# decision 21) — and every way those cross-repo contracts break is silent here
+# and loud in someone else's console. It fails the build on a missing or renamed
+# expose, an exposed entry that never installs `$localize` (a ReferenceError for
+# any consumer that loads only that module), a remote name that disagrees with
+# what this repo publishes to consumers, and — anywhere in the EMBEDDED module's
+# graph — a `@angular/router` import, a routerLink in any template (INLINE
+# `template:` literals included, not just `templateUrl:` files), an absolute
+# href, or a raw navigation primitive (`location.href =`, `location.assign` /
+# `.replace`, `window.open`, `history.pushState` / `.replaceState`). Under the
+# host shell every one of those moves the consumer's whole page; a router is not
+# the only way to do it. It reads only files in the tree, so it costs the image
+# build milliseconds.
+#
+# The same check also runs from `pretest` and `prebuild`, so a contract break
+# fails `npm test` and `npm run build` long before it reaches here. That is the
+# real enforcement — no unit spec can catch it, because Angular's Router is
+# root-providable and resolves in a TestBed that provides no router at all.
+#
 # The three i18n steps around the build (see package.json `build:image`):
 #   i18n:check    — fails the build on a module-scope $localize, an incomplete or
 #                   stale catalog, or a second '@angular/localize/init' importer.
@@ -67,7 +88,8 @@ ENV SNAP_WEB_LOCALES=${SNAP_WEB_LOCALES}
 # them into the image with no extra COPY and no nginx change: nginx.conf's
 # catch-all `location /` already serves and CORS-allows them, exactly as it does
 # remoteEntry.json.
-RUN npm run i18n:check \
+RUN npm run federation:check \
+ && npm run i18n:check \
  && npm run i18n:prepare \
  && npm run build:login -- --base-href=/login/ \
  && npm run i18n:catalogs

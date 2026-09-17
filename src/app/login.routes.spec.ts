@@ -6,7 +6,7 @@ import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
 import { ForgotPasswordComponent } from './forgot-password.component';
 import { MfaEnrollComponent } from './mfa-enroll.component';
-import { MfaChallengeComponent } from './mfa-challenge.component';
+import { MfaChallengePageComponent } from './mfa-challenge-page.component';
 import { MfaSecurityComponent } from './mfa-security.component';
 
 /**
@@ -91,7 +91,11 @@ describe('LOGIN_ROUTES (exposed ./routes federation contract)', () => {
   });
 
   it('exposes the MFA step-up challenge at `mfa/challenge`', () => {
-    expect(at('mfa/challenge')?.component).toBe(MfaChallengeComponent);
+    // The PAGE component, a thin shell owning the ?returnTo= resume and the back
+    // link. The challenge itself is the shared MfaChallengeComponent, which the
+    // federated `./mfa-step-up` module hands to forum, mod and wiki unchanged
+    // (generator#347 decision 21) — one implementation, two mounts.
+    expect(at('mfa/challenge')?.component).toBe(MfaChallengePageComponent);
   });
 
   it('exposes the self-service security section at `security`', () => {

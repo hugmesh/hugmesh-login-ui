@@ -13,6 +13,22 @@ module.exports = hugmeshRemote({
   name: 'login',
   exposes: {
     './routes': './src/app/login.routes.ts',
+    // The MFA STEP-UP CHALLENGE, published for forum, mod and wiki to load in
+    // place instead of each copying admin-ui's ~600-line inline dialog
+    // (hugmesh-generator#347 decision 21, operator 2026-09-16: "B: login-ui
+    // federates one dialog"). The module contract — remote name, what each
+    // output means, what a consumer must provide — is documented at the top of
+    // src/app/mfa-step-up.ts, which is the thing consumers read.
+    //
+    // A SECOND expose is not free of consequence, which is why it is called out
+    // here: `@angular/localize/init` now hangs off ./src/app/i18n/localize-init.ts
+    // so BOTH entry points import it (a consumer that loads only ./mfa-step-up
+    // never imports ./routes, and a compiled i18n template with $localize
+    // undefined is a hard ReferenceError). One module, two entry points, one
+    // esbuild pass with splitting on = one copy. `npm run federation:check`
+    // pins this list, and pins the exposed graph against re-acquiring
+    // @angular/router.
+    './mfa-step-up': './src/app/mfa-step-up.ts',
   },
   // three.js + Vanta are SKIPPED from the shared surface on purpose.
   //

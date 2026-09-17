@@ -866,6 +866,16 @@
         <target>⟦Éñţéŕ å ðîšþļåý ñåɱé ţö çöñţîñüé.········⟧</target>
       </segment>
     </unit>
+    <unit id="mfaChallenge.back">
+      <notes>
+        <note category="location">src/app/mfa-challenge-page.component.html:9,12</note>
+        <note category="meaning">Link back to the sign-in page</note>
+      </notes>
+      <segment>
+        <source>Back to sign in</source>
+        <target>⟦Ɓåçķ ţö šîğñ îñ···⟧</target>
+      </segment>
+    </unit>
     <unit id="mfaChallenge.heading">
       <notes>
         <note category="location">src/app/mfa-challenge.component.html:2,6</note>
@@ -878,7 +888,7 @@
     </unit>
     <unit id="mfaChallenge.dark">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:7,11</note>
+        <note category="location">src/app/mfa-challenge.component.html:10,14</note>
         <note category="meaning">Shown when the two-factor feature is switched off platform-wide</note>
       </notes>
       <segment>
@@ -886,19 +896,9 @@
         <target>⟦ Ţŵö-ƒåçţöŕ åüţĥéñţîçåţîöñ îš ñöţ éñåƀļéð ýéţ. ···········⟧</target>
       </segment>
     </unit>
-    <unit id="mfaChallenge.back">
-      <notes>
-        <note category="location">src/app/mfa-challenge.component.html:9,11</note>
-        <note category="meaning">Link back to the sign-in page</note>
-      </notes>
-      <segment>
-        <source>Back to sign in</source>
-        <target>⟦Ɓåçķ ţö šîğñ îñ···⟧</target>
-      </segment>
-    </unit>
     <unit id="mfaChallenge.ok">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:13,16</note>
+        <note category="location">src/app/mfa-challenge.component.html:15,18</note>
         <note category="meaning">Announced when the step-up challenge succeeded</note>
       </notes>
       <segment>
@@ -908,7 +908,7 @@
     </unit>
     <unit id="mfaChallenge.intro">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:17,22</note>
+        <note category="location">src/app/mfa-challenge.component.html:19,25</note>
         <note category="meaning">Introduction on the step-up challenge page</note>
       </notes>
       <segment>
@@ -916,9 +916,19 @@
         <target>⟦ Ţĥîš åçţîöñ ñééðš å ƒŕéšĥ šéçüŕîţý çĥéçķ. Çöñƒîŕɱ ŵîţĥ ýöüŕ åüţĥéñţîçåţöŕ, å þåššķéý, öŕ å ŕéçöṽéŕý çöðé. ························⟧</target>
       </segment>
     </unit>
+    <unit id="mfaChallenge.intro.action">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:26,29</note>
+        <note category="meaning">Names the pending action the security check is being asked for</note>
+      </notes>
+      <segment>
+        <source> You asked to <ph id="0" equiv="INTERPOLATION" disp="{{ action() }}"/>. </source>
+        <target>⟦ Ýöü åšķéð ţö <ph id="0" equiv="INTERPOLATION" disp="{{ action() }}"/>. ·············⟧</target>
+      </segment>
+    </unit>
     <unit id="mfaChallenge.methods.legend">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:28,34</note>
+        <note category="location">src/app/mfa-challenge.component.html:37,43</note>
         <note category="meaning">Legend of the verification-method radio group</note>
       </notes>
       <segment>
@@ -928,7 +938,7 @@
     </unit>
     <unit id="mfaChallenge.method.totp">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:37,43</note>
+        <note category="location">src/app/mfa-challenge.component.html:46,52</note>
         <note category="meaning">Radio option: verify with an authenticator app</note>
       </notes>
       <segment>
@@ -938,7 +948,7 @@
     </unit>
     <unit id="mfaChallenge.method.webauthn">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:48,54</note>
+        <note category="location">src/app/mfa-challenge.component.html:57,63</note>
         <note category="meaning">Radio option: verify with a passkey</note>
       </notes>
       <segment>
@@ -948,7 +958,7 @@
     </unit>
     <unit id="mfaChallenge.method.recovery">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:58,65</note>
+        <note category="location">src/app/mfa-challenge.component.html:67,74</note>
         <note category="meaning">Radio option: verify with a recovery code</note>
       </notes>
       <segment>
@@ -958,7 +968,7 @@
     </unit>
     <unit id="mfaChallenge.webauthn.go">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:72,77</note>
+        <note category="location">src/app/mfa-challenge.component.html:81,87</note>
         <note category="meaning">Button that starts passkey verification</note>
       </notes>
       <segment>
@@ -966,9 +976,20 @@
         <target>⟦ Ṽéŕîƒý ŵîţĥ å þåššķéý ·····⟧</target>
       </segment>
     </unit>
+    <unit id="mfaChallenge.cancel">
+      <notes>
+        <note category="location">src/app/mfa-challenge.component.html:92,98</note>
+        <note category="location">src/app/mfa-challenge.component.html:135,143</note>
+        <note category="meaning">Button that backs out of the step-up check without verifying</note>
+      </notes>
+      <segment>
+        <source> Not now </source>
+        <target>⟦ Ñöţ ñöŵ ··⟧</target>
+      </segment>
+    </unit>
     <unit id="mfaChallenge.code.help.totp">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:90,92</note>
+        <note category="location">src/app/mfa-challenge.component.html:111,113</note>
         <note category="meaning">Help text under the code field when verifying with an authenticator app</note>
       </notes>
       <segment>
@@ -978,7 +999,7 @@
     </unit>
     <unit id="mfaChallenge.code.help.recovery">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:92,99</note>
+        <note category="location">src/app/mfa-challenge.component.html:113,120</note>
         <note category="meaning">Help text under the code field when verifying with a recovery code</note>
       </notes>
       <segment>
@@ -988,7 +1009,7 @@
     </unit>
     <unit id="mfaChallenge.submit">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.html:103,110</note>
+        <note category="location">src/app/mfa-challenge.component.html:124,129</note>
         <note category="meaning">Submit button on the step-up code form</note>
       </notes>
       <segment>
@@ -998,7 +1019,7 @@
     </unit>
     <unit id="mfaChallenge.code.label.totp">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:67</note>
+        <note category="location">src/app/mfa-challenge.component.ts:130</note>
         <note category="meaning">Label of the code field when verifying with an authenticator app</note>
       </notes>
       <segment>
@@ -1008,7 +1029,7 @@
     </unit>
     <unit id="mfaChallenge.code.label.recovery">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:68</note>
+        <note category="location">src/app/mfa-challenge.component.ts:131</note>
         <note category="meaning">Label of the code field when verifying with a recovery code</note>
       </notes>
       <segment>
@@ -1018,7 +1039,7 @@
     </unit>
     <unit id="mfaChallenge.error.totpRequired">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:82</note>
+        <note category="location">src/app/mfa-challenge.component.ts:153</note>
         <note category="meaning">Validation error when the authenticator code is empty or malformed</note>
       </notes>
       <segment>
@@ -1028,7 +1049,7 @@
     </unit>
     <unit id="mfaChallenge.error.recoveryRequired">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:83</note>
+        <note category="location">src/app/mfa-challenge.component.ts:154</note>
         <note category="meaning">Validation error when the recovery code is empty</note>
       </notes>
       <segment>
@@ -1038,7 +1059,7 @@
     </unit>
     <unit id="mfaChallenge.error.noWebauthn">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:93</note>
+        <note category="location">src/app/mfa-challenge.component.ts:164</note>
         <note category="meaning">Error when passkey verification is attempted in a browser without WebAuthn</note>
       </notes>
       <segment>
@@ -1048,7 +1069,7 @@
     </unit>
     <unit id="mfaChallenge.error.startWebauthn">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:106</note>
+        <note category="location">src/app/mfa-challenge.component.ts:177</note>
         <note category="meaning">Error when the server would not begin passkey verification</note>
       </notes>
       <segment>
@@ -1058,7 +1079,7 @@
     </unit>
     <unit id="mfaChallenge.error.rejected">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:130</note>
+        <note category="location">src/app/mfa-challenge.component.ts:201</note>
         <note category="meaning">Error when the step-up challenge was rejected</note>
       </notes>
       <segment>
@@ -1068,7 +1089,7 @@
     </unit>
     <unit id="mfaChallenge.error.webauthnCancelled">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:142</note>
+        <note category="location">src/app/mfa-challenge.component.ts:222</note>
         <note category="meaning">Error when the user dismissed the browser&apos;s passkey prompt during verification</note>
       </notes>
       <segment>
@@ -1078,7 +1099,7 @@
     </unit>
     <unit id="mfaChallenge.error.webauthnUnknown">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:145</note>
+        <note category="location">src/app/mfa-challenge.component.ts:225</note>
         <note category="meaning">Fallback error when the browser could not verify with a passkey</note>
       </notes>
       <segment>

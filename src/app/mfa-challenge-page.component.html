@@ -1,0 +1,11 @@
+<hug-mfa-challenge
+  [cancellable]="false"
+  (satisfied)="resume()"
+  (unavailable)="onUnavailable()"
+/>
+
+@if (dark()) {
+  <section class="hug-mfa">
+    <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaChallenge.back">Back to sign in</a></p>
+  </section>
+}

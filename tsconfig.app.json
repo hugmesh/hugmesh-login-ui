@@ -4,6 +4,20 @@
     "outDir": "./out-tsc/app",
     "types": ["@angular/localize"]
   },
-  "files": ["src/main.ts"],
+  // EVERY EXPOSED FEDERATION ENTRY POINT MUST BE A PROGRAM ROOT.
+  //
+  // `src/main.ts` is the dev shell, and `./routes` (src/app/login.routes.ts) is
+  // reachable from it through app.routes.ts — which is why the first expose never
+  // needed a line here. `./mfa-step-up` is NOT reachable from main.ts: nothing in
+  // the dev shell renders it, its consumers are other repos. The Angular compiler
+  // then refuses the build with
+  //
+  //   File 'src/app/mfa-step-up.ts' not found in TypeScript compilation.
+  //   Files containing Angular metadata must be part of the TypeScript compilation.
+  //
+  // which is a build failure, not a silent one — but it lands at image-build time
+  // rather than at review, so `npm run federation:check` GATE E asserts the same
+  // thing in milliseconds.
+  "files": ["src/main.ts", "src/app/mfa-step-up.ts"],
   "include": ["src/**/*.d.ts"]
 }

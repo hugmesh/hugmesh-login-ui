@@ -27,7 +27,14 @@
  *     into NG_SKIP_LIST). Two importers race for one global; the loser's catalog
  *     is discarded and `$localize.translate` is `undefined` on the winner, so
  *     translation is skipped WITHOUT even the "No translation found" warning.
- *     Exactly one module in this repo may import it: src/app/login.routes.ts.
+ *     Exactly one module in this repo may import it: src/app/i18n/localize-init.ts.
+ *     It used to be src/app/login.routes.ts, the single exposed federation entry
+ *     point; this remote now exposes TWO (`./routes` and `./mfa-step-up`), and a
+ *     consumer that loads only the second never imports the first — so the import
+ *     moved to a module BOTH entry points import. That is still ONE copy: the
+ *     exposes are bundled by one esbuild pass with code splitting on, so a module
+ *     two entry points share is hoisted into one chunk. The race this gate exists
+ *     to prevent is the CROSS-BUNDLE one, and it is unchanged.
  *     See federation-base.js for the fleet-wide statement of this invariant.
  *
  *   GATE 4  STALE messages.xlf
@@ -48,7 +55,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = join(ROOT, 'src');
 const LOCALE_DIR = join(ROOT, 'src', 'locale');
 const TEMPLATE = join(LOCALE_DIR, 'messages.xlf');
-const INIT_OWNER = join(SRC, 'app', 'login.routes.ts');
+const INIT_OWNER = join(SRC, 'app', 'i18n', 'localize-init.ts');
 
 const failures = [];
 const fail = (gate, msg) => failures.push(`[${gate}] ${msg}`);
@@ -146,7 +153,8 @@ if (importers.length === 0) {
   fail(
     3,
     `'@angular/localize/init' must be imported by EXACTLY ONE module ` +
-      `(${relative(ROOT, INIT_OWNER)}, the exposed federation entry). Found: ` +
+      `(${relative(ROOT, INIT_OWNER)}, imported in turn by EVERY exposed ` +
+      `federation entry point). Found: ` +
       `${importers.map((f) => relative(ROOT, f)).join(', ')}. Two importers race for ` +
       `globalThis.$localize and the loser's catalog is silently discarded.`,
   );

@@ -167,14 +167,29 @@ module's graph — an `@angular/router` import, a `routerLink` in any template (
 an absolute `href`, or a raw navigation primitive (`location.href =`, `location.assign/replace`,
 `window.open`, `history.pushState/replaceState`). A router is not the only way to move a page.
 
-**It is wired into `pretest` and `prebuild`, not just the Dockerfile, and that matters.** This gate
-is the *only* enforcement of the router-free contract: a unit spec cannot see the break, because
+`npm run mirror:check` is the second build gate (`tools/fleet-mirror/census.mjs --self`,
+hugmesh-login-ui #18). This remote is the fleet's sole writer of `localStorage['hug.session']`, and
+fourteen production files in other repositories still load their whole session from it, so deleting
+the write before they migrate signs every role-home out immediately after a successful sign-in —
+that is what PR #17 did and PR #19 reverted. The gate fails whenever the comment-stripped
+`src/app/session.service.ts` no longer contains a `setItem` of the key, or contains one in a
+function nothing calls, while `tools/fleet-mirror/readers.json` still lists a blocking reader. It
+reads two files and spawns nothing, so it also runs in the image build. `npm run mirror:census` is
+the full cross-repo census (it needs the sibling checkouts); `npm run mirror:test` is the guard's
+own mutation battery.
+
+**Both are wired into `pretest` and `prebuild`, not just the Dockerfile, and that matters.** The
+federation gate is the *only* enforcement of the router-free contract: a unit spec cannot see the break, because
 Angular's `Router` is root-providable, so `inject(Router)` resolves in a TestBed with no
 `provideRouter` and throws nothing. Measured: with the gate reachable only from `build:image`, a
 component that re-acquired a `Router` and called `router.navigateByUrl('/login/security')` on the
 success path gave `TOTAL: 467 SUCCESS` from `ng test` and a clean `ng build`. With the hooks in
 place the same mutation fails `npm test` and `npm run build` with `[C] … imports '@angular/router'`.
-Do not unwire them.
+The same measurement applies to `mirror:check` for a different reason: `build:image` runs only on
+`$CI_DEFAULT_BRANCH` and on tags (`.gitlab-ci.yml`), so with the check reachable only from there a
+pull request shaped exactly like PR #17 would merge green and the guard would first fire in the
+post-merge image build — after the regression is on `main`. `tools/fleet-mirror/census.test.mjs`
+pins the `pretest`/`prebuild` wiring so it cannot be silently removed. Do not unwire them.
 
 ### The federated MFA step-up challenge (`./mfa-step-up`)
 

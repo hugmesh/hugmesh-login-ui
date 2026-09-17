@@ -1,23 +1,32 @@
 /**
- * FLEET INVARIANT — this import must exist in EXACTLY ONE bundle platform-wide.
+ * FLEET INVARIANT — `@angular/localize/init` has exactly ONE importer in this
+ * repo, and it is `./i18n/localize-init`, which this exposed entry point imports
+ * FIRST.
  *
- * `@angular/localize/init` assigns `globalThis.$localize` from ITS OWN copy of
- * the localize chunk. native-federation hard-codes `@angular/localize` into its
- * NG_SKIP_LIST, so localize is never a shared singleton and every bundle that
- * imports it inlines a private copy. Two importers therefore race for one
- * global, the last one wins, and the loser's catalog is silently discarded —
- * `$localize.translate` is `undefined` on a virgin instance, so translation is
- * skipped with NO error and NO warning. hugmesh-login-ui is the fleet's sole
- * owner of this import (verified: zero `@angular/localize` in any sibling repo).
- * `npm run i18n:check` enforces it here; the reasoning lives in
- * `federation-base.js`, the file the whole federation contract shares.
+ * `/init` assigns `globalThis.$localize` from ITS OWN copy of the localize chunk.
+ * native-federation hard-codes `@angular/localize` into its NG_SKIP_LIST, so
+ * localize is never a shared singleton and every BUNDLE that imports it inlines a
+ * private copy. Two importing bundles race for one global, the last one wins, and
+ * the loser's catalog is silently discarded — `$localize.translate` is `undefined`
+ * on a virgin instance, so translation is skipped with NO error and NO warning.
+ * hugmesh-login-ui is the fleet's sole owner of this import (verified: zero
+ * `@angular/localize` in any sibling repo). `npm run i18n:check` GATE 3 enforces
+ * it here; the reasoning lives in `federation-base.js`, the file the whole
+ * federation contract shares.
  *
- * It is imported HERE, at the top of the exposed `./routes` surface, because
- * this module is the only production entry point (the host federates
+ * The import moved OUT of this file and into its own module when this remote
+ * gained a SECOND exposed entry point, `./mfa-step-up` (generator#347 decision
+ * 21) — a consumer that loads only that module never imports this one, and would
+ * otherwise render a compiled i18n template with `$localize` undefined. One
+ * module imported by both entry points is still exactly one copy: the exposes
+ * are bundled by one esbuild pass with splitting on. See i18n/localize-init.ts.
+ *
+ * It is imported HERE, at the top of the exposed `./routes` surface, because this
+ * module is that surface's only production entry point (the host federates
  * `./routes`; `main.ts`/`bootstrap.ts` are dev-shell only). Importing it at
  * module scope installs `$localize` before any component can render.
  */
-import '@angular/localize/init';
+import './i18n/localize-init';
 
 import { Routes } from '@angular/router';
 import { localeGuard } from './i18n/locale.guard';
@@ -26,7 +35,7 @@ import { LoginComponent } from './login.component';
 import { AppealComponent } from './appeal.component';
 import { ForgotPasswordComponent } from './forgot-password.component';
 import { MfaEnrollComponent } from './mfa-enroll.component';
-import { MfaChallengeComponent } from './mfa-challenge.component';
+import { MfaChallengePageComponent } from './mfa-challenge-page.component';
 import { MfaSecurityComponent } from './mfa-security.component';
 
 /**
@@ -69,7 +78,12 @@ import { MfaSecurityComponent } from './mfa-security.component';
  *
  *   • `mfa/enroll`    — the enrollment wizard (TOTP QR + verify, passkey, recovery)
  *   • `mfa/challenge` — the step-up challenge (TOTP / passkey / recovery code);
- *                       takes `?returnTo=` to resume the gated action after a stamp
+ *                       takes `?returnTo=` to resume the gated action after a stamp.
+ *                       The page is {@link MfaChallengePageComponent}, a thin shell
+ *                       that owns the returnTo navigation and the back link around
+ *                       the SHARED {@link MfaChallengeComponent} — the same class the
+ *                       federated `./mfa-step-up` module hands to forum, mod and wiki
+ *                       (generator#347 decision 21). One implementation, two mounts.
  *   • `security`      — the self-service list + remove-factor / regenerate surface
  *
  * There is NO OIDC `callback` route: this remote's own username/password form is
@@ -89,7 +103,7 @@ const ROUTES: Routes = [
   // would be the lock-out itself. Mounted by the host at /login/forgot-password.
   { path: 'forgot-password', component: ForgotPasswordComponent },
   { path: 'mfa/enroll', component: MfaEnrollComponent },
-  { path: 'mfa/challenge', component: MfaChallengeComponent },
+  { path: 'mfa/challenge', component: MfaChallengePageComponent },
   { path: 'security', component: MfaSecurityComponent },
 ];
 

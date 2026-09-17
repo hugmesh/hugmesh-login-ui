@@ -2,12 +2,14 @@
   <h2 id="hug-mfa-challenge-heading" i18n="Heading of the two-factor step-up challenge page|@@mfaChallenge.heading">Confirm it's you</h2>
 
   @if (dark()) {
+    <!-- Terminal "not launched" state. No escape affordance is rendered here on
+         purpose: the routed page shows its own back link and an embedding remote
+         shows its own fallback, both driven by the (unavailable) output. -->
     <p class="mfa-help" data-testid="mfa-challenge-dark"
        i18n="Shown when the two-factor feature is switched off platform-wide|@@mfaChallenge.dark">
       Two-factor authentication is not enabled yet.
     </p>
-    <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaChallenge.back">Back to sign in</a></p>
-  } @else if (satisfied()) {
+  } @else if (verified()) {
     <p class="mfa-ok" data-testid="mfa-challenge-ok" role="status" aria-live="polite"
        i18n="Announced when the step-up challenge succeeded|@@mfaChallenge.ok">
       Verified. Continuing…
@@ -17,6 +19,13 @@
       This action needs a fresh security check. Confirm with your authenticator,
       a passkey, or a recovery code.
     </p>
+
+    @if (action()) {
+      <p class="mfa-help" data-testid="mfa-challenge-action"
+         i18n="Names the pending action the security check is being asked for|@@mfaChallenge.intro.action">
+        You asked to {{ action() }}.
+      </p>
+    }
 
     @if (error()) {
       <p class="mfa-error" data-testid="mfa-challenge-error" role="alert" aria-live="assertive">
@@ -71,6 +80,18 @@
         >
           Verify with a passkey
         </button>
+        @if (cancellable()) {
+          <button
+            type="button"
+            class="mfa-btn"
+            data-testid="mfa-challenge-cancel"
+            [disabled]="busy()"
+            (click)="cancel()"
+            i18n="Button that backs out of the step-up check without verifying|@@mfaChallenge.cancel"
+          >
+            Not now
+          </button>
+        }
       </div>
     } @else {
       <form class="mfa-verify" (ngSubmit)="submitCode()">
@@ -102,6 +123,18 @@
           >
             Verify
           </button>
+          @if (cancellable()) {
+            <button
+              type="button"
+              class="mfa-btn"
+              data-testid="mfa-challenge-cancel"
+              [disabled]="busy()"
+              (click)="cancel()"
+              i18n="Button that backs out of the step-up check without verifying|@@mfaChallenge.cancel"
+            >
+              Not now
+            </button>
+          }
         </div>
       </form>
     }

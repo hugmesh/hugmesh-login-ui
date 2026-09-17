@@ -151,6 +151,79 @@ the previous commit:
 Nothing in the bottom two rows is fetched until an effect is actually about to run — so a
 reduced-motion visitor, a machine without WebGL, and the `static`/`image` presets all pay zero.
 
+## What this remote publishes
+
+It is a native-federation **remote** named `login`, and it exposes two modules.
+
+| exposed module  | what it is                                                        | who loads it |
+| --------------- | ----------------------------------------------------------------- | ------------ |
+| `./routes`      | the login / registration / appeal / MFA routes, mounted at `/login` | hugmesh-host-shell |
+| `./mfa-step-up` | the MFA step-up challenge, rendered **in place** by another remote | forum, mod, wiki |
+
+`npm run federation:check` is the build gate over both: it fails on a missing or renamed expose, an
+exposed entry that never installs `$localize`, an exposed entry that is not a TypeScript program
+root, an `@angular/router` import or a `routerLink` anywhere in the embedded module's graph, and a
+remote name that disagrees with what this repo publishes. It runs in the Dockerfile before the
+build, so none of those can reach an image.
+
+### The federated MFA step-up challenge (`./mfa-step-up`)
+
+There used to be three copies of this one client — this remote's `/login/mfa/challenge` page,
+admin-ui's inline dialog, and service-catalog-ui's paste-a-token variant — and forum, mod and wiki
+each needed a fourth. hugmesh-generator#347 decision 21 settled it: **login-ui federates one
+dialog.** The class the routed page renders is the class this module hands out; there is no second
+implementation to drift.
+
+```ts
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+const m = await loadRemoteModule({
+  remoteEntry: '/login/remoteEntry.json',   // NOT the two-arg overload — see below
+  remoteName: 'login',
+  exposedModule: './mfa-step-up',
+});
+
+const Cmp = await m.loadMfaStepUpComponent();      // awaits this remote's catalog
+const ref = viewContainerRef.createComponent(Cmp);
+ref.setInput('action', 'lock this topic');          // optional
+
+ref.instance.satisfied.subscribe(() => { retryTheGatedAction(); ref.destroy(); });
+ref.instance.dismissed.subscribe(() => ref.destroy());
+ref.instance.unavailable.subscribe(() => { ref.destroy(); showYourOwnFallback(); });
+```
+
+**Pass `remoteEntry`.** The host shell initialises federation with an empty eager set
+(`EAGER_REMOTES = []`) and parks every remote for on-demand loading, so unless the user has already
+been to `/login` this session, `loadRemoteModule('login', './mfa-step-up')` finds nothing
+registered. The object overload initialises the remote first.
+
+**Prefer `loadMfaStepUpComponent()` over the bare `MfaStepUpComponent` export.** It awaits this
+remote's translation catalog before handing the class back, which is the only hook an embedded
+dialog has — the `./routes` tree does it in a `canMatch` guard, and a dialog has no router. The bare
+class renders fine; it renders in English.
+
+**What the outputs mean.** `satisfied` = the caller's own session now carries a fresh
+`mfa_satisfied` stamp server-side, so retry the same action unchanged — nothing is handed back,
+because the BFF gates read the stamp off the session, not off a value a dialog could return.
+`dismissed` = the user pressed "Not now"; do not retry. `unavailable` = the MFA surface answered
+503 because it ships dark platform-wide; emitted at most once, and the dialog offers no way out of
+its own in that state because what "back" means belongs to the surface that embedded it.
+
+**What the consumer must provide:** `provideHttpClient()` in its root injector (the generated
+`/bff/mfa/*` client is `providedIn: 'root'` and credentials ride on a per-request `HttpContext`
+token, not an interceptor, precisely so it works under someone else's `HttpClient`);
+`globalThis.__HUG_BFF_URL__` set before the module is imported, since it is read at module scope;
+the `--hug-*` theme custom properties on the page (the host shell defines all eight this surface
+uses, and so do forum-ui, mod-ui and wiki-ui standalone); and a CSP that admits this remote's
+same-origin chunks plus the `blob:` that es-module-shims needs in `script-src`/`style-src`/
+`connect-src`.
+
+**It is not reachable yet, and that is why it could land.** MFA ships dark org-wide
+(`app.mfa.enabled=false` / `app.casdoor.mfa.enabled=false`), so every `/bff/mfa/*` call answers 503
+and this dialog can only ever reach `unavailable`. Separately, the forum BFF still answers an MFA
+refusal with Spring's bare access-denied (hugmesh-forum-bff-api#15), so a step-up 403 is
+indistinguishable from a role 403 and no consumer can yet decide to offer the check at all.
+
 ## Develop
 
 ```sh

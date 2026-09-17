@@ -1,4 +1,9 @@
-# MFA step-up challenge — src/app/mfa-challenge.component.ts.
+# MFA step-up challenge — src/app/mfa-challenge-page.component.ts (the routed
+# page: the ?returnTo= resume and the back link) wrapping the shared
+# src/app/mfa-challenge.component.ts (the challenge itself, which is ALSO the
+# federated `./mfa-step-up` module forum/mod/wiki embed — generator#347
+# decision 21). Every selector below lives in the shared component, so these
+# scenarios exercise the same code both consumers get.
 #
 # The `/login/mfa/challenge` screen collects a FRESH MFA stamp before a sensitive
 # action. Its whole initial surface renders with NO network call (the constructor

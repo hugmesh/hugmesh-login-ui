@@ -1,5 +1,7 @@
 // Step definitions backing features/auth/mfa-challenge.feature — the MFA
-// step-up challenge (src/app/mfa-challenge.component.ts).
+// step-up challenge: the routed page (src/app/mfa-challenge-page.component.ts)
+// around the shared src/app/mfa-challenge.component.ts, which is also the
+// federated `./mfa-step-up` module.
 //
 // The initial surface (method radios, code field, submit gating) renders with
 // NO network call, so those steps drive pure client-side state and need no mock.

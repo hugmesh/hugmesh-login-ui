@@ -1,0 +1,60 @@
+# WITHOUT THIS FILE THE IMAGE IS BUILT FROM THE DEVELOPER'S DISK (#21).
+#
+# The Dockerfile installs dependencies from package.json/package-lock.json and
+# only then does `COPY . .`. With no ignore list that COPY includes the host's
+# own node_modules, which lands ON TOP of the tree `npm install` just resolved
+# from the lockfile. The image is then built against whatever the developer
+# happened to have installed locally, not against the lockfile.
+#
+# That is not hypothetical. hugmesh-host-shell carries the same file because a
+# corrected `overrides.@softarc/native-federation` (4.4.1, exporting
+# isUnderAnyDir) still produced a build that failed with "does not provide an
+# export named 'isUnderAnyDir'" -- a stale local 4.3.1 had overwritten it. It
+# hid in the other direction too: the .stack-src build tree is a fresh clone
+# with no node_modules, so the identical Dockerfile built fine THERE and broke
+# on the developer's box. CI never sees it either, because a fresh checkout has
+# no node_modules -- which is exactly what lets it survive.
+#
+# `tools/docker/check-context.mjs` (npm run docker:context, wired into pretest
+# and prebuild) enumerates the build context under these rules and asserts both
+# halves: that the junk below is OUT, and that every path the Dockerfile's COPY
+# instructions and the in-image build actually read is still IN. Over-excluding
+# here breaks the image just as surely as under-excluding does.
+#
+# NOTE ON PATTERN SCOPE: a .dockerignore pattern is matched against the WHOLE
+# relative path, so a bare `node_modules` line excludes ONLY the root-level one.
+# e2e/ has its own package.json and package-lock.json, so this repo really does
+# grow a second node_modules -- hence `**/node_modules`, not `node_modules`.
+
+# Installed/derived trees. Every one of these is regenerated inside the image.
+**/node_modules
+.angular
+dist
+out-tsc
+coverage
+
+# VCS, CI and editor metadata. Never read by the build; `.git` alone is tens of
+# MB of context upload, and keeping .github out means editing a workflow does
+# not invalidate the image cache.
+.git
+.gitignore
+.gitattributes
+.github
+.gitlab-ci.yml
+.vscode
+.idea
+**/*.swp
+
+# Local env/secrets must never enter an image layer.
+.env
+.env.*
+!.env.example
+
+# Test and report output.
+test-results
+playwright-report
+**/*.log
+
+# Docker's own files: editing the Dockerfile should not invalidate the context.
+Dockerfile
+.dockerignore

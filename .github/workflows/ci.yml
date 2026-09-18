@@ -1,0 +1,213 @@
+# PR-time CI (#22).
+#
+# WHAT THIS CLOSES. Before this file, `release.yml` (workflow_dispatch) was the
+# repo's ONLY GitHub workflow, so a pull request ran nothing: not `npm test`,
+# not `npm run build`, not `federation:check`, not `i18n:check`. Every gate the
+# repo owns was a gate a human had to remember. That is not theoretical — it was
+# measured while closing a skeptic finding on #20: a component that had
+# re-acquired a Router AND called router.navigateByUrl() on its success path
+# still produced `TOTAL: 467 SUCCESS` from `ng test` and a clean bundle from
+# `ng build`, because `federation:check` was reachable only from `build:image`
+# and the Dockerfile RUN. The break would first have surfaced at image-build
+# time, in ANOTHER repo's console.
+#
+# WHAT IT MIRRORS. .gitlab-ci.yml already runs the equivalent on merge-request
+# events in the in-cluster GitLab (the GitHub repo is pull-mirrored there). This
+# is the same set of gates, expressed for GitHub, so a PR reviewed HERE is
+# checked HERE instead of relying on a mirror sync landing first. Job-by-job
+# correspondence:
+#
+#   gitlab `test`      -> `unit` (same command, same ChromeHeadlessCI launcher)
+#   gitlab `e2e:bdd`   -> `e2e-compile` (same offline --list gate, same
+#                         allow_failure semantics as continue-on-error)
+#   gitlab `build:image` -> `image` (build ONLY, never push: pushing is the
+#                         release path and stays in release.yml)
+#   gitlab `pentest:*` -> NOT mirrored. Those `extends:` hidden jobs included
+#                         from hugmesh/hugmesh-generator, which has no GitHub
+#                         Actions equivalent. Mirroring them is a fleet decision,
+#                         not a repo one; the GitLab pipeline keeps running them.
+#
+#   plus `gates`, which has no GitLab counterpart: it runs the node-only checks
+#   on their own so a federation/i18n/mirror break is reported as ITSELF rather
+#   than as a confusing failure inside `npm test`'s pretest hook.
+#
+# NOT PROVEN BY EXECUTION. This has never run. Every Actions job on this account
+# currently dies in 2-5 seconds on a billing annotation, so a red check here is
+# not evidence of a failure and a green one is not obtainable. What CAN be said
+# is that each command below is one that was run locally on this branch and its
+# exit code observed; see the PR for the transcript. The first real proof will
+# be the first PR opened after Actions billing is restored: the `unit` job
+# reporting a test count, and `image` printing a directory listing from inside
+# the built image.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A force-push to a PR branch should cancel the superseded run rather than
+# queue behind it. `github.ref` on a push to main is unique per branch, so main
+# builds serialise instead of cancelling each other.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  # ---------------------------------------------------------------- node only
+  gates:
+    name: Gates (federation, i18n, fleet mirror)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # `npm ci` and not `npm install`: the point of a gate job is that it fails
+      # when package-lock.json and package.json disagree, instead of quietly
+      # resolving something else.
+      - run: npm ci --no-audit --no-fund
+      # Each gate as its own step, so the annotation names the thing that broke.
+      - name: federation:check (exposes are loadable by the host)
+        run: npm run federation:check
+      - name: i18n:check (no module-scope $localize, no stale or partial catalog)
+        run: npm run i18n:check
+      - name: mirror:check (the hug.session write is still live)
+        run: npm run mirror:check
+      - name: tool unit tests (i18n + fleet-mirror)
+        run: |
+          npm run i18n:test
+          npm run mirror:test
+
+  # ------------------------------------------------------------- needs Chrome
+  unit:
+    name: Unit tests (Karma / ChromeHeadlessCI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # karma.conf.js launches ChromeHeadlessCI, which needs a real browser
+      # binary. Resolve it explicitly and FAIL LOUDLY if the runner image stops
+      # shipping one: a karma launcher timeout is a miserable way to learn that.
+      - name: Locate a headless Chrome
+        run: |
+          set -eu
+          for c in /usr/bin/google-chrome /usr/bin/google-chrome-stable \
+                   /usr/bin/chromium /usr/bin/chromium-browser; do
+            if [ -x "$c" ]; then
+              echo "CHROME_BIN=$c" >> "$GITHUB_ENV"
+              echo "using $c"
+              "$c" --version || true
+              exit 0
+            fi
+          done
+          echo "::error::no Chrome binary on this runner image; karma cannot launch ChromeHeadlessCI"
+          exit 1
+      # `npm test` and not `ng test`: the pretest hook is where federation:check
+      # and mirror:check live, and running around it is exactly the hole #22 is
+      # about.
+      - run: npm test
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: |
+            test-results/
+            reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # --------------------------------------------------------------- the bundle
+  build:
+    name: Build the remote bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # `npm run build` runs the prebuild gates too; --base-href matches how the
+      # image is built, because a root base href 404s every bundle behind the
+      # fe-gateway's /login route.
+      - run: npm run build -- --base-href=/login/
+      # Assert what was PRODUCED, not just that the builder exited 0. Without
+      # remoteEntry.json the host shell cannot load this remote at all, and a
+      # federation misconfiguration can otherwise leave a green build.
+      - name: The federation remote entry exists
+        run: |
+          set -eu
+          test -f dist/login/browser/remoteEntry.json \
+            || { echo "::error::dist/login/browser/remoteEntry.json missing — the host cannot load this remote"; exit 1; }
+          test -f dist/login/browser/index.html \
+            || { echo "::error::dist/login/browser/index.html missing"; exit 1; }
+          # NB: `exposes` in a native-federation remoteEntry.json is an ARRAY of
+          # {key, outFileName}, not an object — Object.keys() would print 0,1.
+          echo "remoteEntry.json exposes:"
+          node -e "const e=require('./dist/login/browser/remoteEntry.json').exposes||[];console.log(e.map(x=>x.key).join(', ')||'(none)')"
+
+  # ---------------------------------------------------------------- the image
+  image:
+    name: Build the image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # No registry login and no `push:` — publishing stays in release.yml. This
+      # job exists because the Dockerfile runs a DIFFERENT pipeline from `npm run
+      # build` (i18n:check -> i18n:prepare -> build:login -> i18n:catalogs) and
+      # nothing on a PR exercised it.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: hugmesh-login-ui:ci
+      # Check what the image CONTAINS. A Dockerfile can succeed and still ship
+      # the wrong tree — see #21, where a missing .dockerignore let the build
+      # context overwrite the installed node_modules.
+      - name: The served webroot has the remote entry
+        run: |
+          set -eu
+          docker run --rm --entrypoint sh hugmesh-login-ui:ci -c \
+            'ls -la /usr/share/nginx/html && test -f /usr/share/nginx/html/remoteEntry.json'
+
+  # --------------------- offline compile gate for the Playwright/Gherkin suite
+  # Mirrors .gitlab-ci.yml's e2e:bdd, INCLUDING its allow_failure. That is
+  # deliberate policy there and is kept here: this job proves every scenario
+  # compiles and every Gherkin step is bound (`bddgen` + `--list`); it does NOT
+  # execute scenarios, because the offline ones still need the remote SERVED at
+  # the baseURL and the @cluster ones need a live host. Do not "fix" the
+  # continue-on-error without also giving it something real to run.
+  e2e-compile:
+    name: e2e scenarios compile (no execution)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: mcr.microsoft.com/playwright:v1.49.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - name: bddgen + playwright --list
+        working-directory: e2e
+        # `npm run bdd:list` is e2e/package.json's own script for exactly the two
+        # commands the GitLab job spells out inline (bddgen && playwright test
+        # --list), so the gate cannot drift from the one developers run.
+        run: |
+          npm install --no-audit --no-fund
+          npm run bdd:list

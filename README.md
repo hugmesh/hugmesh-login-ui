@@ -309,6 +309,16 @@ scope rule that makes the naive fix wrong here: a `.dockerignore` pattern is mat
 whole relative path, so a bare `node_modules` line would exclude only the root one and leave
 `e2e/node_modules` in the image.
 
+**`docker:context` alone cannot pin that scope rule.** It enumerates whatever the checkout it is
+pointed at actually has on disk, and a normal developer checkout only ever grows a *root*
+`node_modules` unless `e2e/` has separately been `npm install`-ed — so narrowing `**/node_modules`
+back down to `node_modules` still exits 0 against a typical tree even though it reopens #21 for
+anyone whose `e2e/` does have its own install. `docker:test` is what pins the rule with a synthetic
+path (`context.test.mjs`'s `'this repo HAS a .dockerignore...'` case), independent of what happens
+to exist on the machine running the check. `docker:test` therefore now also runs automatically from
+`pretest` and `prebuild`, alongside `docker:context` — a regression to the narrower pattern turns
+the test suite red instead of merging silently.
+
 Measured on a checkout that has `node_modules` (`--context <dir>`): 37 349 files / 3 236.5 MiB
 before, 521 files / 2.5 MiB after.
 

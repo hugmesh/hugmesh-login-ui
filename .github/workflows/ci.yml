@@ -84,10 +84,13 @@ jobs:
         run: npm run i18n:check
       - name: mirror:check (the hug.session write is still live)
         run: npm run mirror:check
-      - name: tool unit tests (i18n + fleet-mirror)
+      - name: docker:context (build context matches the installed tree, #21)
+        run: npm run docker:context
+      - name: tool unit tests (i18n + fleet-mirror + dockerignore matcher)
         run: |
           npm run i18n:test
           npm run mirror:test
+          npm run docker:test
 
   # ------------------------------------------------------------- needs Chrome
   unit:

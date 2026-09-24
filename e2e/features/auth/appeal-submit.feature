@@ -58,3 +58,28 @@ Feature: Structured appeal submit — a curtailed signed-in session can submit a
     Then the appeal submit error says "We could not verify a signed-in session from this browser, so the structured appeal was not recorded. Please use the email address below instead."
     And the appeal is not shown as recorded
     And the appeal mailto link points to "appeals@hugmesh.net" with the appeal subject
+
+  # ── Privileged principals appealing their OWN account (admin-bff
+  # AccountAppealUserController: GET/POST /bff/me/appeal is `authenticated()` — any
+  # signed-in role, including a curtailed one). The survey of 2026-09-18 listed a
+  # MOD and an ADMIN submitting their own appeal as the uncovered roles on this path.
+  # The component gates the form on a hydrated session only (loggedIn()), never on a
+  # role, so a moderator or an admin must see the same form and the same honest
+  # confirmation. Live, the path already answers them: on the generator's compose
+  # stack (2026-09-23) GET /bff/me/appeal returned 200 for e2e-mod (roles ["mod"]),
+  # e2e-admin and e2e-superadmin alike — POST was not exercised live, it records an
+  # appeal. These rows keep the same offline boundary as the rows above.
+  Scenario Outline: A signed-in <role> can submit their own structured appeal and gets a real confirmation
+    Given the browser holds a live session cookie for the "<persona>" persona
+    And the appeal-contact resolver answers with the email "appeals@hugmesh.net"
+    And submitting a structured appeal succeeds with status "PENDING" and id "appeal-<role>-1"
+    When I open the appeal page directly
+    Then the structured appeal form is shown
+    When I submit the structured appeal with reason "My own account was curtailed by mistake, please review it."
+    Then the appeal is shown as recorded
+    And the structured appeal form is no longer shown
+
+    Examples:
+      | role      | persona              |
+      | moderator | role-mod@gmail.com   |
+      | admin     | role-admin@gmail.com |

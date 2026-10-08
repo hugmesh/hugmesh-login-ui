@@ -6,15 +6,17 @@ one per translatable locale.
 
 English is the **source language**. Its text lives in the templates and the
 `$localize` calls themselves, so there is no `messages.en.xlf` and there never
-will be. That is why the default build (`web_locales=()`) ships **zero** files
+will be. That is why the default image build (`web_locales=()`) ships **zero** files
 from this directory and makes **zero** catalog requests — the smallest artifact
 and no network surface at all, which is what a LAN-only or air-gapped mesh needs.
 
 ## What ships
 
 Which catalogs end up in the image is the Studio's `web_locales` field
-(`--web-locales de,fr`), forwarded to the Dockerfile as `SNAP_WEB_LOCALES`. A
-catalog in this directory is *available*, not *shipped*.
+(`--web-locales de,fr`), forwarded to the Dockerfile as the `HUG_WEB_LOCALES` build
+argument. (`SNAP_WEB_LOCALES`, the old name, is still read when `HUG_WEB_LOCALES` is
+empty.) A catalog in this directory is *available*, not *shipped*. Today the only
+catalog here besides the template is `en-XA`.
 
 | `web_locales` | in the image |
 |---|---|

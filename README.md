@@ -8,8 +8,8 @@ that owns sign-in, two-stage registration, MFA, and the ban/suspension appeal fl
 
 - **Native username/password sign-in, no OAuth redirect.** The browser never sees a Casdoor URL or
   a raw token. This remote POSTs credentials to the backend, which drives the identity-provider
-  exchange server-side and hands back only an opaque, httpOnly session cookie. A build-time check
-  (plus a unit guard) asserts the shipped bundle references no identity-provider origin at all.
+  exchange server-side and hands back only an opaque, httpOnly session cookie. A unit guard
+  (`src/app/no-casdoor-origin.spec.ts`) fails if the source grows a way to build an identity-provider URL.
 - **Inline MFA.** TOTP + WebAuthn passkey enrollment, step-up challenges, and a self-service
   security page, all served from this remote.
 - **Two-stage registration.** A first-time sign-in captures a display name (and, for non-ASCII
@@ -19,8 +19,10 @@ that owns sign-in, two-stage registration, MFA, and the ban/suspension appeal fl
   the same machine (loopback-only, never a network probe); if present, it offers a one-click
   role picker instead of the password form. Fully additive — absent or failing silently falls back
   to the normal form.
-- **Runtime theming and i18n.** Brand colors/fonts and translation catalogs are injected at
-  container start, not baked into the build — one image serves every deployment.
+- **Runtime theming, build-time catalogs.** Brand colors and fonts are injected at container start,
+  not baked into the build, so one image serves every brand. Which translation catalogs ship is
+  decided at image build (`HUG_WEB_LOCALES`, see `src/locale/README.md`); which one a browser loads
+  is decided at runtime.
 - **Theme-reactive animated background.** A WebGL backdrop whose colors are read from the same
   runtime theme tokens as the rest of the page, so a rebrand restyles it live. See below.
 - **Accessibility-first.** WCAG-audited color tokens, a two-layer high-contrast focus ring,
@@ -28,16 +30,18 @@ that owns sign-in, two-stage registration, MFA, and the ban/suspension appeal fl
 
 ## Login background
 
-The sign-in page paints a themed backdrop in three layers: a CSS gradient built from the
+The sign-in page paints a themed backdrop in layers: a CSS gradient built from the
 `--hug-*` tokens, optionally a [Vanta](https://www.vantajs.com/) effect or an operator-supplied
-image drawn over it, and a scrim of `--hug-bg-0` over both. The scrim is what keeps the form
+image drawn over it, the pride-flag stripes when the active theme preset carries them, and a scrim
+of `--hug-bg-0` over all of it. The scrim is what keeps the form
 legible: text is composited back toward the very color the `--hug-text*` tokens were derived
 against, so no effect can quietly break contrast (`worstCaseTextContrast()` asserts the bound).
 
 **It is decoration, and it never gets a vote on whether someone can sign in.** Layer 1 is CSS and
 is on screen before any script runs. No WebGL, a chunk that will not load, a Vanta init that
-throws, a lost GL context, an image that will not decode, a typo'd preset id — every one of them
-lands back on that gradient. There is no state in which the page is blank.
+throws, a lost GL context, an image that will not decode — every one of them lands back on that
+gradient. A preset id that is not in the list is ignored and the next rung of the precedence
+ladder below applies. There is no state in which the page is blank.
 
 `prefers-reduced-motion: reduce` means the effect is **never started** — not started and paused —
 and the animation chunks are not even fetched. The preference is watched, not read once, so
@@ -65,20 +69,21 @@ theme, so a change is an env edit plus a restart, never an image rebuild:
 
 | variable            | meaning                                                                   |
 | ------------------- | ------------------------------------------------------------------------- |
-| `SNAP_BG_EFFECT`    | one of the preset ids above. Unset ⇒ `image` if an image is configured, else `fog` |
+| `SNAP_BG_EFFECT`    | one of the preset ids above. Unset ⇒ the theme's `--sd-bg-effect` (next section); with no theme value, `image` if an image is configured, else `fog` |
 | `SNAP_BG_IMAGE_URL` | the operator's own background file (see below)                            |
-| `SNAP_BG_PICKER`    | `1`/`true` shows a visitor-facing preset picker. Off by default — the front door carries no decoration controls unless asked |
+| `SNAP_BG_PICKER`    | `1`/`true`/`yes`/`on` shows a visitor-facing preset picker. Off by default — the front door carries no decoration controls unless asked |
 
-Anything unrecognised falls back to the themed gradient rather than failing the page; the
+Anything unrecognised is ignored rather than failing the page (an unknown effect id falls to the
+next default, an unusable image falls to the themed gradient); the
 allowlists live in `src/app/background.types.ts` (unit-tested) and are deliberately **not**
 duplicated in shell.
 
 ### Theme-declared effect: `--sd-bg-effect`
 
-The theme itself can declare the background effect — the same `SNAP_THEME_CSS` transport the
-colors ride on, so picking an effect in the generator's Themes editor needs no per-service env.
+The theme itself can declare the background effect — the same `HUG_THEME_CSS` transport the
+colors ride on (`SNAP_THEME_CSS` is still read as a fallback; `docker-entrypoint.d/50-hug-theme.sh`), so picking an effect in the generator's Themes editor needs no per-service env.
 **The contract** (shared with [hugmesh-host-shell#19](https://github.com/hugmesh/hugmesh-host-shell/issues/19);
-host-shell PR #20 standardized the `--sd-*` token namespace it lives in):
+host-shell PR #20 delivered the first half of that issue):
 
 ```css
 :root {
@@ -109,8 +114,8 @@ Precedence, most specific wins — the same ladder the background image uses:
 4. `image` if a background file is configured, else `fog`.
 
 `gradient`/`none` govern the **animation axis only**: they do not suppress a configured
-background image (the generator emits the field's default for every theme, so letting it beat the
-image would silently un-configure every image-shipping mesh). A `vanta-<name>` is an explicit
+background image (a theme that says "no animation" has not said "no picture"). The generator
+emits `--sd-bg-effect` only when the effect is not `gradient`. A `vanta-<name>` is an explicit
 choice and covers the image, exactly like an explicit `SNAP_BG_EFFECT`. `prefers-reduced-motion`
 outranks everything on this list: the effect is never started and its chunks are never fetched.
 
@@ -118,19 +123,19 @@ outranks everything on this list: the effect is never started and its chunks are
 
 An operator background is a **themeable asset**, not an upload: there is no upload endpoint in this
 repo, and the platform already ships operator-supplied art (brand fonts) by embedding it in the
-same `SNAP_THEME_CSS` text the colors ride on. A background image gets the same transport rather
+same theme CSS text the colors ride on. A background image gets the same transport rather
 than a new one. Supply it either way:
 
 - `SNAP_BG_IMAGE_URL` — this deployment's explicit override; or
-- `--hug-login-bg-image: url("…")` in `SNAP_THEME_CSS` — the mesh's brand default.
+- `--hug-login-bg-image: url("…")` in the theme CSS — the mesh's brand default.
 
 Env wins over the token. Accepted: an `https:` URL, a same-origin path, or a base64 `data:` URI of
 a **raster** image (PNG/JPEG/WEBP/AVIF/GIF) — a strict subset of what nginx's `img-src` CSP allows.
 SVG is rejected, matching the platform's existing stance on operator art (the avatar path refuses
 it too): an SVG is a document that can carry script, and this one paints on the login page. `http:`
 (a mixed-content downgrade), protocol-relative URLs and every CSS `url()` breakout character are
-rejected outright rather than escaped. The bytes are then decoded and size-checked before being
-painted, because a string check cannot tell a photograph from a 1×1 tracking pixel.
+rejected outright rather than escaped. The image is then decoded and must be at least 320×240
+pixels before it is painted, because a string check cannot tell a photograph from a 1×1 tracking pixel.
 
 ### Bundle cost
 
@@ -157,8 +162,8 @@ It is a native-federation **remote** named `login`, and it exposes two modules.
 
 | exposed module  | what it is                                                        | who loads it |
 | --------------- | ----------------------------------------------------------------- | ------------ |
-| `./routes`      | the login / registration / appeal / MFA routes, mounted at `/login` | hugmesh-host-shell |
-| `./mfa-step-up` | the MFA step-up challenge, rendered **in place** by another remote | forum, mod, wiki |
+| `./routes`      | the login / registration / forgot-password / appeal / MFA routes, mounted at `/login` | hugmesh-host-shell |
+| `./mfa-step-up` | the MFA step-up challenge, rendered **in place** by another remote | intended for forum, mod, wiki; no repo loads it yet |
 
 `npm run federation:check` is the build gate over both. It fails on a missing or renamed expose, an
 exposed entry that never installs `$localize`, an exposed entry that is not a TypeScript program
@@ -171,7 +176,9 @@ an absolute `href`, or a raw navigation primitive (`location.href =`, `location.
 hugmesh-login-ui #18). This remote is the fleet's sole writer of `localStorage['hug.session']`, and
 fourteen production files in other repositories still load their whole session from it, so deleting
 the write before they migrate signs every role-home out immediately after a successful sign-in —
-that is what PR #17 did and PR #19 reverted. The gate fails whenever the comment-stripped
+that is what PR #17 did and PR #19 put right. (It is the only remote that creates the entry at
+sign-in. hugmesh-host-shell also touches the key: it patches `status` into an existing session and
+removes the key on sign-out. `tools/fleet-mirror/readers.json` lists that file as a second writer.) The gate fails whenever the comment-stripped
 `src/app/session.service.ts` no longer contains a `setItem` of the key, or contains one in a
 function nothing calls, while `tools/fleet-mirror/readers.json` still lists a blocking reader. It
 reads two files and spawns nothing, so it also runs in the image build. `npm run mirror:census` is
@@ -190,6 +197,8 @@ The same measurement applies to `mirror:check` for a different reason: `build:im
 pull request shaped exactly like PR #17 would merge green and the guard would first fire in the
 post-merge image build — after the regression is on `main`. `tools/fleet-mirror/census.test.mjs`
 pins the `pretest`/`prebuild` wiring so it cannot be silently removed. Do not unwire them.
+GitHub Actions (`.github/workflows/ci.yml`, #22) also runs the gates on every pull request, in its
+own `gates` job.
 
 ### The federated MFA step-up challenge (`./mfa-step-up`)
 
@@ -247,9 +256,10 @@ same-origin chunks plus the `blob:` that es-module-shims needs in `script-src`/`
 
 **It is not reachable yet, and that is why it could land.** MFA ships dark org-wide
 (`app.mfa.enabled=false` / `app.casdoor.mfa.enabled=false`), so every `/bff/mfa/*` call answers 503
-and this dialog can only ever reach `unavailable`. Separately, the forum BFF still answers an MFA
-refusal with Spring's bare access-denied (hugmesh-forum-bff-api#15), so a step-up 403 is
-indistinguishable from a role 403 and no consumer can yet decide to offer the check at all.
+and this dialog can only ever reach `unavailable`. No other repo loads the module yet: forum-ui and
+wiki-ui do not reference it, and mod-ui and admin-ui carry their own `MfaStepUpDialogComponent`.
+The forum BFF now marks a step-up refusal on the wire (403 plus `X-Step-Up-Required: X-Forum-StepUp`,
+hugmesh-forum-bff-api#15, fixed in PR #17), so a consumer can tell it from a role 403.
 
 ## Develop
 
@@ -282,10 +292,12 @@ npm run build     # -> dist/login/browser
 npm run build:image
 ```
 
-The Dockerfile builds a Node-based image and serves the compiled bundle via nginx, with baseline
-security headers (`X-Frame-Options`, `Strict-Transport-Security`, etc.) and an SPA fallback route.
-Per-brand theming and locale catalogs are supplied at container start via environment variables —
-see `docker-entrypoint.d/` for the exact mechanism.
+The Dockerfile builds the bundle on Node 24 and serves it from nginx 1.27, with a nonce-based CSP,
+baseline security headers (`X-Frame-Options`, `Strict-Transport-Security`, etc.) and an SPA fallback
+route. Per-brand theming and the background settings are supplied at container start via
+environment variables — see `docker-entrypoint.d/` for the exact mechanism. The set of locale
+catalogs is the exception: it is a build argument (`HUG_WEB_LOCALES`, or the older
+`SNAP_WEB_LOCALES`).
 
 ### What goes into the image (`.dockerignore`)
 
@@ -319,8 +331,8 @@ to exist on the machine running the check. `docker:test` therefore now also runs
 `pretest` and `prebuild`, alongside `docker:context` — a regression to the narrower pattern turns
 the test suite red instead of merging silently.
 
-Measured on a checkout that has `node_modules` (`--context <dir>`): 37 349 files / 3 236.5 MiB
-before, 521 files / 2.5 MiB after.
+Measured on a checkout that has `node_modules` (`--context <dir>`, 2026-10-07): 37 483 files /
+3 244.4 MiB with no `.dockerignore` (`--no-ignore`), 538 files / 2.7 MiB with it.
 
 ## Roadmap
 
@@ -328,7 +340,6 @@ before, 521 files / 2.5 MiB after.
   the identity-provider integration is centralized in one place.
 - Move remaining credentialed API calls onto the generated typed client (the anonymous/public reads
   are already migrated).
-- Add end-to-end coverage for the passwordless local-sign-in flow (currently unit-tested only).
 
 ## License
 

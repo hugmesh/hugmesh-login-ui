@@ -27,8 +27,8 @@ in `tests/helpers/roles.ts`. `bddgen` compiles the features into specs below
   announcements banner) and `locale.feature` (runtime `?lang=` locale). These
   execute for real **when the remote itself is served** at the baseURL — run
   them locally per "Running the offline suite locally" below, or via a
-  served-remote CI job. NOTE: the current `e2e:bdd` CI job runs the OFFLINE GATE
-  only (`bddgen` + `--list`) — it proves every scenario compiles and every step
+  served-remote CI job. NOTE: the current CI jobs (`e2e:bdd` in `.gitlab-ci.yml`, `e2e-compile` in
+  `.github/workflows/ci.yml`) run the OFFLINE GATE only (`bddgen` + `--list`) — it proves every scenario compiles and every step
   binds, but does NOT serve the remote, so it does not execute the scenarios;
   wiring a served-remote run into CI is tracked separately.
 - **`@cluster`** — scenarios that need a live integration-test host (a real
@@ -63,7 +63,7 @@ or serve a production build statically (any SPA-fallback static server over
 `dist/login/browser`, with `/bff/*` answered 404 so unmocked calls fail closed
 instead of receiving index.html).
 
-Offline gate only (what CI's `e2e:bdd` job always runs first):
+Offline gate only (all that CI runs):
 
 ```sh
 npm run bdd:list               # bddgen && playwright test --list

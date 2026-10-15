@@ -86,6 +86,8 @@ export const ROLES = Object.freeze({
   'writer': { blocking: false },
   /** The literal appears in a production path but only inside a comment. */
   'comment': { blocking: false },
+  /** Build, CI or guard files of the writer repo that name the key as text. */
+  'tooling': { blocking: false },
   /** A committed BUILD ARTEFACT (compiled bundle) that embeds the literal. */
   'artifact': { blocking: false },
 });

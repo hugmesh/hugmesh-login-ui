@@ -30,7 +30,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  classify, diff, orgDiff, selfCheck, parseGrep, loadManifest, scanRepo, checkCanary, ROLES, EXIT,
+  classify, groupByFile, diff, orgDiff, selfCheck, parseGrep, loadManifest, scanRepo, checkCanary, ROLES, EXIT,
   DEFAULT_MANIFEST, DEFAULT_WRITER, stripComments, enclosingFunctionName, writerLiveness,
 } from './census.mjs';
 
@@ -443,6 +443,30 @@ test('THIS repo: readers.json is valid and the real writer passes --self', () =>
   assert.equal(res.ok, true, res.message);
   assert.equal(res.writerPresent, true, 'src/app/session.service.ts must still write the fleet mirror while readers.json lists blocking readers');
   assert.ok(manifest.acknowledged.some((e) => e.repo === 'hugmesh-login-ui' && e.role === 'writer'), 'this repo acknowledges itself as the writer');
+});
+
+test('THIS repo: every tracked production file naming the key is acknowledged in readers.json', () => {
+  // The full census scans this repo too (it is in readers.json#repos). Measured
+  // 2026-10-15: the Dockerfile, the CI workflow, census.mjs and readers.json
+  // were not acknowledged, so the full census reported four NEW READERs in the
+  // guard's own repo. --self cannot see that (it never diffs), and the full
+  // census needs the sibling checkouts, so this is the only place it is caught
+  // without them.
+  const manifest = loadManifest(DEFAULT_MANIFEST);
+  const root = join(HERE, '..', '..');
+  const r = spawnSync('git', ['grep', '--text', '-n', '-z', '-F', manifest.key], { cwd: root, encoding: 'utf8' });
+  assert.ok(r.status === 0 || r.status === 1, `git grep failed: ${r.stderr}`);
+  const files = groupByFile(parseGrep(r.stdout, '')).filter((f) => f.kind === 'production');
+  assert.ok(files.some((f) => f.file === 'src/app/session.service.ts'), 'the scan must see the writer, or it is blind');
+  const mine = manifest.acknowledged.filter((e) => e.repo === 'hugmesh-login-ui');
+  const unacknowledged = files
+    .filter((f) => !mine.some((e) => (e.file ? e.file === f.file : f.file.startsWith(e.prefix))))
+    .map((f) => f.file);
+  assert.deepEqual(unacknowledged, [], 'acknowledge these in readers.json with a role');
+});
+
+test('the tooling role does not block retiring the mirror', () => {
+  assert.equal(ROLES.tooling.blocking, false);
 });
 
 test('this test file contains no LITERAL NUL byte (it would blind grep to itself)', () => {

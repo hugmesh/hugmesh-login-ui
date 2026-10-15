@@ -91,9 +91,17 @@
 				"serve-original": {
 					"builder": "@angular-devkit/build-angular:dev-server",
 					"options": {
-						"buildTarget": "login:build",
 						"port": 4203
-					}
+					},
+					"configurations": {
+						"production": {
+							"buildTarget": "login:esbuild:production"
+						},
+						"development": {
+							"buildTarget": "login:esbuild:development"
+						}
+					},
+					"defaultConfiguration": "development"
 				},
 				"extract-i18n": {
 					"builder": "@angular-devkit/build-angular:extract-i18n",

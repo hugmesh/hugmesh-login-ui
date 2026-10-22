@@ -45,6 +45,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       kind: ${{ steps.v.outputs.kind }}
+      sha: ${{ steps.v.outputs.sha }}
       sha12: ${{ steps.v.outputs.sha12 }}
     steps:
       - name: Check out repository
@@ -66,6 +67,9 @@ jobs:
             echo "::error::version '$version' is not MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-beta.N"
             exit 1
           fi
+          # Peel to the commit: on an annotated tag the ref names a tag object,
+          # and the image tag and revision label must name the commit.
+          commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
           case "$GITHUB_REF" in
             refs/heads/main)
               kind=main
@@ -76,8 +80,8 @@ jobs:
                 exit 1
               fi
               git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-              if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
-                echo "::error::tag $GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main"
+              if ! git merge-base --is-ancestor "$commit" refs/remotes/origin/main; then
+                echo "::error::tag $GITHUB_REF_NAME points at $commit, which is not on main"
                 exit 1
               fi
               kind=release
@@ -90,7 +94,8 @@ jobs:
           {
             echo "version=$version"
             echo "kind=$kind"
-            echo "sha12=${GITHUB_SHA:0:12}"
+            echo "sha=$commit"
+            echo "sha12=${commit:0:12}"
           } >> "$GITHUB_OUTPUT"
           echo "version=$version kind=$kind ref=$GITHUB_REF"
 
@@ -138,6 +143,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
       KIND: ${{ needs.version.outputs.kind }}
+      SHA: ${{ needs.version.outputs.sha }}
       SHA12: ${{ needs.version.outputs.sha12 }}
     steps:
       - name: Check out repository
@@ -219,7 +225,7 @@ jobs:
             echo "labels<<EOF_LABELS"
             echo "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY"
             echo "org.opencontainers.image.version=$label_version"
-            echo "org.opencontainers.image.revision=$GITHUB_SHA"
+            echo "org.opencontainers.image.revision=$SHA"
             echo "EOF_LABELS"
           } >> "$GITHUB_OUTPUT"
           echo "Tags:"

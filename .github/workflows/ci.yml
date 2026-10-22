@@ -66,7 +66,7 @@ jobs:
   # ---------------------------------------------------------------- node only
   gates:
     name: Gates (federation, i18n, fleet mirror)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -95,7 +95,7 @@ jobs:
   # ------------------------------------------------------------- needs Chrome
   unit:
     name: Unit tests (Karma / ChromeHeadlessCI)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -138,7 +138,7 @@ jobs:
   # --------------------------------------------------------------- the bundle
   build:
     name: Build the remote bundle
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -168,7 +168,7 @@ jobs:
   # ---------------------------------------------------------------- the image
   image:
     name: Build the image (no push)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -200,7 +200,7 @@ jobs:
   # continue-on-error without also giving it something real to run.
   e2e-compile:
     name: e2e scenarios compile (no execution)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
     continue-on-error: true
     container:
       image: mcr.microsoft.com/playwright:v1.49.0-jammy

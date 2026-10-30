@@ -215,6 +215,12 @@ image build, after the regression is on `main`. `tools/fleet-mirror/census.test.
 `pretest`/`prebuild` wiring so nobody can remove it silently. Do not unwire them. GitHub Actions
 (`.github/workflows/ci.yml`, #22) also runs the gates on every pull request, in its own `gates` job.
 
+Every `ci.yml` job runs on a GitHub-hosted `ubuntu-latest` runner, named literally. This repository
+is public, so a pull request can come from anyone, and its code (install scripts, the Dockerfile)
+must never run on a self-hosted runner. `npm run ci:test` (`tools/ci/workflow-runners.test.mjs`,
+wired into `pretest` and `prebuild`) fails if a workflow that pull requests trigger names any other
+runner, reads the `RUNS_ON` variable, or if `release.yml` gains a pull-request trigger.
+
 ### The federated MFA step-up challenge (`./mfa-step-up`)
 
 There used to be three copies of this one client: this remote's `/login/mfa/challenge` page,

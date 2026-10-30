@@ -10,8 +10,8 @@
     "build": "ng build login",
     "build:login": "ng build login",
     "test": "ng test login --watch=false --browsers=ChromeHeadlessCI",
-    "pretest": "npm run federation:check && npm run mirror:check && npm run docker:context && npm run docker:test && npm run csp:test",
-    "prebuild": "npm run federation:check && npm run mirror:check && npm run docker:context && npm run docker:test && npm run csp:test",
+    "pretest": "npm run federation:check && npm run mirror:check && npm run docker:context && npm run docker:test && npm run csp:test && npm run ci:test",
+    "prebuild": "npm run federation:check && npm run mirror:check && npm run docker:context && npm run docker:test && npm run csp:test && npm run ci:test",
     "test:watch": "ng test login",
     "i18n:extract": "ng extract-i18n login --format=xlf2 --output-path=src/locale --out-file=messages.xlf",
     "i18n:pseudo": "node tools/i18n/make-pseudo.mjs",
@@ -26,6 +26,7 @@
     "docker:context": "node tools/docker/check-context.mjs",
     "docker:test": "node --test \"tools/docker/*.test.mjs\"",
     "csp:test": "node --test \"tools/csp/*.test.mjs\"",
+    "ci:test": "node --test \"tools/ci/*.test.mjs\"",
     "build:image": "npm run federation:check && npm run mirror:check && npm run docker:context && npm run i18n:check && npm run i18n:prepare && npm run build:login && npm run i18n:catalogs",
     "gen": "ng-openapi-gen",
     "gen:spec": "cp \"${ADMIN_BFF_SPEC:-../hugmesh-admin-bff-api/src/main/resources/openapi/openapi.json}\" openapi.json && npm run gen"

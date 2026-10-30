@@ -39,6 +39,18 @@
 # be the first PR opened after Actions billing is restored: the `unit` job
 # reporting a test count, and `image` printing a directory listing from inside
 # the built image.
+#
+# WHERE IT RUNS: GitHub-hosted `ubuntu-latest`, always. This repository is
+# public, and every job here runs code from the pull request (`npm ci` and
+# `npm install` run package install scripts, `docker build` runs the PR's
+# Dockerfile, `e2e-compile` runs in a container). A pull request from a fork is
+# a stranger's code, so none of these jobs may run on a self-hosted runner,
+# which is a real machine owned by a person. The runner is therefore a literal
+# label and not a repository variable: a variable can be set later without a
+# review, and it would apply to pull requests too. tools/ci/workflow-runners.test.mjs
+# (`npm run ci:test`, run by `npm test` and `npm run build`) fails if any job
+# in a workflow that triggers on pull_request names anything else. Publishing
+# stays in release.yml, which has no pull_request trigger.
 
 name: CI
 
@@ -66,7 +78,7 @@ jobs:
   # ---------------------------------------------------------------- node only
   gates:
     name: Gates (federation, i18n, fleet mirror)
-    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,16 +98,17 @@ jobs:
         run: npm run mirror:check
       - name: docker:context (build context matches the installed tree, #21)
         run: npm run docker:context
-      - name: tool unit tests (i18n + fleet-mirror + dockerignore matcher)
+      - name: tool unit tests (i18n + fleet-mirror + dockerignore matcher + workflow runners)
         run: |
           npm run i18n:test
           npm run mirror:test
           npm run docker:test
+          npm run ci:test
 
   # ------------------------------------------------------------- needs Chrome
   unit:
     name: Unit tests (Karma / ChromeHeadlessCI)
-    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -138,7 +151,7 @@ jobs:
   # --------------------------------------------------------------- the bundle
   build:
     name: Build the remote bundle
-    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -168,7 +181,7 @@ jobs:
   # ---------------------------------------------------------------- the image
   image:
     name: Build the image (no push)
-    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -200,7 +213,7 @@ jobs:
   # continue-on-error without also giving it something real to run.
   e2e-compile:
     name: e2e scenarios compile (no execution)
-    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     continue-on-error: true
     container:
       image: mcr.microsoft.com/playwright:v1.49.0-jammy

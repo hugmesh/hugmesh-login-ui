@@ -290,6 +290,11 @@ expect_ok "push to release/X.Y -> :sha only, no floating tag" branch none false 
 run_case "push to release/<not X.Y>" 0.5.0-beta.1 refs/heads/release/attest-something "$m6"
 expect_refused "release/<not X.Y> is refused" "a release branch is named release/X.Y"
 
+run_case "push to release/X.Y.Z" 0.3.2 refs/heads/release/0.3.2 "$r32"
+expect_refused "release/X.Y.Z (more than X.Y) is refused" "a release branch is named release/X.Y"
+run_case "push to release/X.Y-suffix" 0.3.2 refs/heads/release/0.3-hotfix "$r32"
+expect_refused "release/X.Y-<suffix> is refused" "a release branch is named release/X.Y"
+
 run_case "release branch with another line's version" 0.4.1 refs/heads/release/0.3 "$r32"
 expect_refused "release/0.3 carrying 0.4.1 is refused" "must carry an X.Y.* version"
 

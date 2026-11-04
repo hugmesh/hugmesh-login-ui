@@ -366,21 +366,28 @@ The version lives in `package.json` (and the matching root entries of `package-l
 runs in the default mesh and the sign-in path has been checked live. A fix during the beta raises
 `N`; a step up the status ladder raises MINOR and resets `N` to 1.
 
-`.github/workflows/release.yml` publishes `ghcr.io/hugmesh/hugmesh-login-ui`:
+`.github/workflows/release.yml` publishes `ghcr.io/hugmesh/hugmesh-login-ui`. The release channel
+comes from the tag; `scripts/release-channel.sh` decides it and `scripts/test-release-channel.sh`
+(run first by the workflow) tests it:
 
 | Trigger | Image tags | GitHub release |
 |---|---|---|
 | push to `main` | `main`, `sha-<12 hex>` | none |
-| push of tag `v<version>` | `<version>`, `beta`, `sha-<12 hex>` | prerelease, never marked latest |
-| manual run on `main` | same as a push to `main` | none |
-| manual run on a `v*` tag | re-runs that release; what already exists is left alone | same |
+| push to `release/X.Y` | `sha-<12 hex>` only | none |
+| push of tag `vX.Y.Z-beta.N` (commit on `main`) | `X.Y.Z-beta.N`, `beta`, `sha-<12 hex>` | prerelease, never marked latest |
+| push of tag `vX.Y.Z` (commit on `release/X.Y`) | `X.Y.Z`, `X.Y`, `latest`, `sha-<12 hex>` | full release, marked latest |
+| manual run on `main`, `release/X.Y` or a `v*` tag | same as the push; for a tag, what already exists is left alone | same |
 
-`latest` is never pushed for a beta. The tag must equal `v` plus the `package.json` version and
-point at a commit on `main`, and a version that is already in the registry is never overwritten.
-Before the image is built, the workflow runs the same gates and Karma suite as `ci.yml`. The
-workflow has no pull-request trigger. Its jobs use the self-hosted runner only when the repository
-variable `RUNS_ON_PUBLISH` is set and the run is for `main` or a `v*` tag; otherwise they run on
-`ubuntu-latest`. To cut a beta, merge the version bump, then push an annotated tag on that commit:
+A stable patch on an older line (a newer stable `vA.B.C` is already published) moves `X.Y` but not
+`latest`, and its GitHub release is not marked latest. Any other `release/*` branch, a beta tag whose
+commit is not on `main`, a stable tag whose commit is not on its `release/X.Y`, or any other prerelease
+(`-rc.N`) is refused. The tag must
+equal `v` plus the `package.json` version. `X.Y.Z` is never overwritten; `beta`, `X.Y` and `latest`
+move, and every tag a run pushes is checked to resolve to the signed digest. Before the image is
+built, the workflow runs the same gates and Karma suite as `ci.yml`. The workflow has no
+pull-request trigger. Its jobs use the self-hosted runner only when the repository variable
+`RUNS_ON_PUBLISH` is set and the run is for `main` or a `v*` tag; otherwise (`release/X.Y` included)
+they run on `ubuntu-latest`. To cut a beta, merge the version bump, then push an annotated tag on that commit:
 
 ```sh
 git tag -a v0.3.0-beta.1 -m "hugmesh-login-ui 0.3.0-beta.1" <merge commit>

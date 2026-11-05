@@ -1,6 +1,6 @@
 {
   "name": "@hugmesh/login",
-  "version": "0.3.0-beta.1",
+  "version": "0.4.0-beta.2",
   "description": "Native username/password login + two-stage registration (Casdoor brokered server-side, no browser redirect) — Angular native-federation remote for the hugmesh.net host.",
   "license": "MIT",
   "private": true,

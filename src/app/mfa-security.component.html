@@ -13,6 +13,22 @@
       here until it has been turned on.
     </p>
     <p><a routerLink="/" i18n="Link back to the sign-in page|@@mfaSecurity.back">Back to sign in</a></p>
+  } @else if (signedOut()) {
+    <!-- Not signed in (GUI-32): the factor list answered 401. Nothing on this
+         page can work without a session, so it shows the way to the sign-in form
+         instead of a raw status and a live "Add a method" button. The link is
+         RELATIVE (".." from `security` is the sign-in form at this remote's own
+         mount), so it resolves to /login/ standalone and /login under the shell. -->
+    <p class="mfa-help" data-testid="mfa-security-signed-out" role="status" aria-live="polite"
+       i18n="Shown on the security page to a visitor who is not signed in|@@mfaSecurity.signedOut">
+      Sign in to manage your security methods.
+    </p>
+    <div class="mfa-actions">
+      <a class="mfa-btn primary" routerLink=".." data-testid="mfa-security-signin-link"
+         i18n="Link from the security page to the sign-in form|@@mfaSecurity.signedOut.signIn">
+        Sign in
+      </a>
+    </div>
   } @else {
     @if (error()) {
       <p class="mfa-error" data-testid="mfa-security-error" role="alert" aria-live="assertive">
@@ -51,7 +67,12 @@
     }
 
     <div class="mfa-actions">
-      <a class="mfa-btn primary" routerLink="/login/mfa/enroll" data-testid="mfa-security-add"
+      <!-- RELATIVE on purpose (GUI-32). Standalone, this document is served with
+           base href /login/ and the route is `/security`, so an absolute
+           "/login/mfa/enroll" got the base prepended again: /login/login/mfa/enroll.
+           "../mfa/enroll" climbs out of `security` to this remote's own mount and
+           is /login/mfa/enroll both standalone and under the host's `login` mount. -->
+      <a class="mfa-btn primary" routerLink="../mfa/enroll" data-testid="mfa-security-add"
         i18n="Link to the two-factor enrollment wizard|@@mfaSecurity.add">
         Add a method
       </a>

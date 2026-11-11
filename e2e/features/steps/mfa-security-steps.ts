@@ -21,6 +21,25 @@ const REGENERATE = '[data-testid="mfa-security-regenerate"]';
 const NEW_RECOVERY = '[data-testid="mfa-new-recovery"]';
 const NEW_RECOVERY_CODES = '[data-testid="mfa-new-recovery-codes"]';
 const CHALLENGE_VIEW = '[data-testid="mfa-challenge-view"]';
+const ENROLL_VIEW = '[data-testid="mfa-enroll-view"]';
+const SECURITY_ERROR = '[data-testid="mfa-security-error"]';
+const SIGNED_OUT = '[data-testid="mfa-security-signed-out"]';
+const SIGNIN_LINK = '[data-testid="mfa-security-signin-link"]';
+const LOGIN_USERNAME = '[data-testid="login-username"]';
+
+/**
+ * The path a link's href actually resolves to in THIS document — against
+ * document.baseURI, exactly as the browser resolves it on click. A substring
+ * check on the raw attribute is what let `/login/login/mfa/enroll` through
+ * (GUI-32): it contains `/login/mfa/enroll`.
+ */
+async function resolvedPath(page: import('@playwright/test').Page, selector: string): Promise<string> {
+  const link = page.locator(selector);
+  await expect(link).toBeVisible();
+  const href = (await link.getAttribute('href')) ?? '';
+  const base = await page.evaluate(() => document.baseURI);
+  return new URL(href, base).pathname;
+}
 
 function csv(list: string): string[] {
   return list.split(',').map((s) => s.trim()).filter(Boolean);
@@ -70,6 +89,14 @@ Given('removing a factor requires a fresh step-up', async ({ page }) => {
   });
 });
 
+Given('the security page answers that I am not signed in', async ({ page }) => {
+  // No bff_ cookie: a 401 with no JSON error body, as measured on the local
+  // stack (GUI-32) — the shape that used to render as a bare "HTTP 401".
+  await page.route('**/bff/mfa/**', async (route) => {
+    await route.fulfill({ status: 401, contentType: 'text/plain', body: '' });
+  });
+});
+
 Given('regenerating recovery codes returns {string}', async ({ page }, codes: string) => {
   await page.route('**/bff/mfa/recovery/regenerate', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
@@ -110,10 +137,43 @@ Then('the first factor has an accessible remove control', async ({ page }) => {
 });
 
 Then('the "add a method" link points to the enrollment wizard', async ({ page }) => {
-  const link = page.locator(SECURITY_ADD);
-  await expect(link).toBeVisible();
-  const href = await link.getAttribute('href');
-  expect(href ?? '').toContain('/login/mfa/enroll');
+  expect(await resolvedPath(page, SECURITY_ADD)).toBe('/login/mfa/enroll');
+});
+
+When('I follow the "add a method" link', async ({ page }) => {
+  await page.locator(SECURITY_ADD).click();
+});
+
+Then('I land on the enrollment wizard at {string}', async ({ page }, path: string) => {
+  await expect(page.locator(ENROLL_VIEW)).toBeVisible({ timeout: 15_000 });
+  expect(new URL(page.url()).pathname).toBe(path);
+});
+
+Then('the sign-in invitation is shown', async ({ page }) => {
+  const notice = page.locator(SIGNED_OUT);
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText(/sign in to manage your security methods/i);
+});
+
+Then('no raw HTTP status is shown', async ({ page }) => {
+  await expect(page.locator(SECURITY_ERROR)).toHaveCount(0);
+  await expect(page.locator(SECURITY_VIEW)).not.toContainText(/HTTP \d{3}/);
+});
+
+Then('none of the security controls are offered', async ({ page }) => {
+  await expect(page.locator(SECURITY_ADD)).toHaveCount(0);
+  await expect(page.locator(REGENERATE)).toHaveCount(0);
+  await expect(page.locator(SECURITY_EMPTY)).toHaveCount(0);
+  await expect(page.locator(FACTOR_LIST)).toHaveCount(0);
+});
+
+Then('following the sign-in link opens the sign-in form', async ({ page }) => {
+  // The sign-in form is this remote's own mount root: /login/ when the page is
+  // served standalone with base href /login/, /login under `ng serve` (base /).
+  expect((await resolvedPath(page, SIGNIN_LINK)).replace(/\/$/, '')).toBe('/login');
+  await page.locator(SIGNIN_LINK).click();
+  await expect(page.locator(LOGIN_USERNAME)).toBeVisible({ timeout: 15_000 });
+  expect(new URL(page.url()).pathname.replace(/\/$/, '')).toBe('/login');
 });
 
 Then('the no-factors notice is shown', async ({ page }) => {

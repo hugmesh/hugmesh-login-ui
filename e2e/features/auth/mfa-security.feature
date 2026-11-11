@@ -12,6 +12,13 @@
 # Both mutations (remove, regenerate) are STEP-UP GATED server-side (403 without
 # a fresh stamp); the remove-403 scenario proves the UI routes to the step-up
 # challenge with a returnTo rather than swallowing the 403.
+#
+# GUI-32: the deployed page is this repo's own index.html built with
+# --base-href=/login/, where an absolute `/login/...` routerLink resolved to
+# /login/login/... — and a `toContain('/login/mfa/enroll')` check passed it. The
+# link checks below compare the RESOLVED path exactly, and the anonymous
+# scenario pins the 401 -> "sign in" state. Run them against a --base-href=/login/
+# build as well as `ng serve` (base /): both must be green.
 @auth @mfa
 Feature: MFA Security section — list factors, gate mutations behind step-up, regenerate codes
   As a member managing my own account security
@@ -50,3 +57,17 @@ Feature: MFA Security section — list factors, gate mutations behind step-up, r
     When I open the security page
     And I regenerate the recovery codes
     Then a fresh display-once recovery set "NEW1-1111,NEW2-2222,NEW3-3333" is shown
+
+  Scenario: following "add a method" lands on the enrollment wizard at its own path
+    Given the security page lists a TOTP factor and a passkey factor
+    When I open the security page
+    And I follow the "add a method" link
+    Then I land on the enrollment wizard at "/login/mfa/enroll"
+
+  Scenario: an anonymous visitor is invited to sign in instead of shown a raw error
+    Given the security page answers that I am not signed in
+    When I open the security page
+    Then the sign-in invitation is shown
+    And no raw HTTP status is shown
+    And none of the security controls are offered
+    And following the sign-in link opens the sign-in form

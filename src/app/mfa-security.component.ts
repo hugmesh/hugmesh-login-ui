@@ -15,6 +15,14 @@ import { MfaFactor } from './mfa.types';
  * error. The host ALSO gates the route, so a dark BFF is the belt-and-braces
  * second line.
  *
+ * SIGNED OUT: a 401 from `factors()` means there is no live `bff_` cookie — a
+ * visitor hard-loaded `/login/security` without signing in (on the local stack
+ * that is a 401 with no JSON error body, which used to render as a bare
+ * "HTTP 401" banner). That is not an error to show: it flips to a
+ * "sign in to manage your security methods" state with a link to the sign-in
+ * form, and none of the controls that could only fail (GUI-32). Only the LOAD
+ * maps 401 this way; elsewhere in this remote a 401 can mean a wrong code.
+ *
  * a11y: the factor list is a real <ul> with each row's type/date as text (not
  * colour-only), remove buttons carry a per-factor accessible name, the
  * load/empty/dark states are announced, and the display-once regenerated codes
@@ -34,6 +42,8 @@ export class MfaSecurityComponent {
   readonly factors = signal<MfaFactor[]>([]);
   readonly loaded = signal(false);
   readonly dark = signal(false);
+  /** The factor list answered 401: no session. See the class comment. */
+  readonly signedOut = signal(false);
   readonly error = signal('');
   readonly busy = signal(false);
   /** Display-once codes from a regenerate (cleared on the next mutation). */
@@ -48,6 +58,11 @@ export class MfaSecurityComponent {
     const r = await this.mfa.factors();
     if (r.dark) {
       this.dark.set(true);
+      this.loaded.set(true);
+      return;
+    }
+    if (r.status === 401) {
+      this.signedOut.set(true);
       this.loaded.set(true);
       return;
     }

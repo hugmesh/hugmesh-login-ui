@@ -1,5 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { APP_BASE_HREF, Location, PlatformLocation } from '@angular/common';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter, Router, Routes } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { routes as STANDALONE_ROUTES } from './app.routes';
+import { LOGIN_ROUTES } from './login.routes';
+import { MfaEnrollComponent } from './mfa-enroll.component';
 import { MfaSecurityComponent } from './mfa-security.component';
 import { MfaService } from './mfa.service';
 import { MfaFactor, MfaResult } from './mfa.types';
@@ -104,5 +111,119 @@ describe('MfaSecurityComponent', () => {
     mfa.regenerateRecovery.and.resolveTo(err(403));
     await component.regenerate();
     expect(String(nav.calls.mostRecent().args[0])).toContain('/login/mfa/challenge');
+  });
+});
+
+/**
+ * GUI-32 — every link on this page must resolve against the MOUNT, not against
+ * the router root.
+ *
+ * The fe-gateway serves THIS repo's own index.html for `/login/**`, built with
+ * `--base-href=/login/` (Dockerfile). A hard load of `/login/security` is
+ * therefore router URL `/security`, and an ABSOLUTE `routerLink="/login/…"` is
+ * prefixed with the base href a second time: `/login/login/mfa/enroll`. That
+ * still rendered (app.routes.ts also mounts the routes under `login`), which is
+ * why nothing failed — the live stack recorded the doubled href for all six
+ * seeded personas. Under the host shell the same routes sit under a `login`
+ * mount with base `/`. A link relative to the route works in both; these tests
+ * pin BOTH mounts with the real route tables, so a link that only works in one
+ * of them goes red.
+ *
+ * The real PathLocationStrategy is in play (TestBed backs it with a mock
+ * PlatformLocation), so APP_BASE_HREF is honoured exactly as in the browser.
+ */
+describe('MfaSecurityComponent — mount-relative links (GUI-32)', () => {
+  let mfa: jasmine.SpyObj<MfaService>;
+
+  async function mount(opts: {
+    baseHref: string;
+    routes: Routes;
+    url: string;
+    factors: MfaResult<{ factors: MfaFactor[] }>;
+  }): Promise<{ harness: RouterTestingHarness; component: MfaSecurityComponent; el: HTMLElement }> {
+    mfa = jasmine.createSpyObj<MfaService>('MfaService', ['factors', 'removeFactor', 'regenerateRecovery']);
+    mfa.factors.and.resolveTo(opts.factors);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(opts.routes),
+        { provide: APP_BASE_HREF, useValue: opts.baseHref },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MfaService, useValue: mfa },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl(opts.url, MfaSecurityComponent);
+    await component.load();
+    harness.detectChanges();
+    return { harness, component, el: harness.routeNativeElement as HTMLElement };
+  }
+
+  /** The production standalone deploy: base href /login/, the dev-shell route
+   *  table, the document hard-loaded at /login/security. */
+  const standalone = (factors: MfaResult<{ factors: MfaFactor[] }>) =>
+    mount({ baseHref: '/login/', routes: STANDALONE_ROUTES, url: '/security', factors });
+
+  /** The host shell: base href /, LOGIN_ROUTES federated in under `login`. */
+  const shell = (factors: MfaResult<{ factors: MfaFactor[] }>) =>
+    mount({ baseHref: '/', routes: [{ path: 'login', children: LOGIN_ROUTES }], url: '/login/security', factors });
+
+  const addHref = (el: HTMLElement) =>
+    el.querySelector('[data-testid="mfa-security-add"]')?.getAttribute('href');
+
+  it('standalone (base /login/): "Add a method" points at /login/mfa/enroll, not /login/login/mfa/enroll', async () => {
+    const { el } = await standalone(ok({ factors: FACTORS }));
+    expect(TestBed.inject(Location).path()).toBe('/security');
+    expect(addHref(el)).toBe('/login/mfa/enroll');
+  });
+
+  it('standalone (base /login/): clicking "Add a method" lands on /login/mfa/enroll and renders the wizard', async () => {
+    const { harness, el } = await standalone(ok({ factors: FACTORS }));
+    (el.querySelector('[data-testid="mfa-security-add"]') as HTMLAnchorElement).click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(TestBed.inject(Location).path()).toBe('/mfa/enroll');
+    expect(TestBed.inject(PlatformLocation).pathname).toBe('/login/mfa/enroll');
+    expect(harness.fixture.debugElement.query((d) => d.componentInstance instanceof MfaEnrollComponent)).toBeTruthy();
+  });
+
+  it('host shell (base /, `login` mount): "Add a method" points at /login/mfa/enroll', async () => {
+    const { el } = await shell(ok({ factors: FACTORS }));
+    expect(addHref(el)).toBe('/login/mfa/enroll');
+  });
+
+  // ---- anonymous visitor (GUI-32 part 2) -----------------------------------
+
+  const signinHref = (el: HTMLElement) =>
+    el.querySelector('[data-testid="mfa-security-signin-link"]')?.getAttribute('href');
+
+  it('a 401 from the factor list shows "sign in" — no raw status, no add/regenerate controls', async () => {
+    const { component, el } = await standalone(err(401));
+    expect(component.signedOut()).toBeTrue();
+    expect(el.querySelector('[data-testid="mfa-security-signed-out"]')?.textContent).toContain(
+      'Sign in to manage your security methods',
+    );
+    expect(el.querySelector('[data-testid="mfa-security-error"]')).toBeNull();
+    expect(el.textContent).not.toContain('HTTP 401');
+    expect(el.querySelector('[data-testid="mfa-security-add"]')).toBeNull();
+    expect(el.querySelector('[data-testid="mfa-security-regenerate"]')).toBeNull();
+    expect(el.querySelector('[data-testid="mfa-security-empty"]')).toBeNull();
+  });
+
+  it('standalone (base /login/): the sign-in link is the sign-in form at /login/', async () => {
+    const { el } = await standalone(err(401));
+    expect(signinHref(el)).toBe('/login/');
+  });
+
+  it('host shell (base /, `login` mount): the sign-in link is the sign-in form at /login', async () => {
+    const { el } = await shell(err(401));
+    expect(signinHref(el)).toBe('/login');
+  });
+
+  it('only a 401 is "signed out": any other failure still reports the error', async () => {
+    const { component, el } = await standalone(err(500));
+    expect(component.signedOut()).toBeFalse();
+    expect(el.querySelector('[data-testid="mfa-security-signed-out"]')).toBeNull();
+    expect(el.querySelector('[data-testid="mfa-security-error"]')).toBeTruthy();
   });
 });

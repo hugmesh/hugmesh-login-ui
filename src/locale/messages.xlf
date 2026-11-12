@@ -908,7 +908,7 @@
     </unit>
     <unit id="mfaChallenge.code.label.totp">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:130</note>
+        <note category="location">src/app/mfa-challenge.component.ts:139</note>
         <note category="meaning">Label of the code field when verifying with an authenticator app</note>
       </notes>
       <segment>
@@ -917,7 +917,7 @@
     </unit>
     <unit id="mfaChallenge.code.label.recovery">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:131</note>
+        <note category="location">src/app/mfa-challenge.component.ts:140</note>
         <note category="meaning">Label of the code field when verifying with a recovery code</note>
       </notes>
       <segment>
@@ -926,7 +926,7 @@
     </unit>
     <unit id="mfaChallenge.error.totpRequired">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:153</note>
+        <note category="location">src/app/mfa-challenge.component.ts:162</note>
         <note category="meaning">Validation error when the authenticator code is empty or malformed</note>
       </notes>
       <segment>
@@ -935,7 +935,7 @@
     </unit>
     <unit id="mfaChallenge.error.recoveryRequired">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:154</note>
+        <note category="location">src/app/mfa-challenge.component.ts:163</note>
         <note category="meaning">Validation error when the recovery code is empty</note>
       </notes>
       <segment>
@@ -944,7 +944,7 @@
     </unit>
     <unit id="mfaChallenge.error.noWebauthn">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:164</note>
+        <note category="location">src/app/mfa-challenge.component.ts:173</note>
         <note category="meaning">Error when passkey verification is attempted in a browser without WebAuthn</note>
       </notes>
       <segment>
@@ -953,7 +953,7 @@
     </unit>
     <unit id="mfaChallenge.error.startWebauthn">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:177</note>
+        <note category="location">src/app/mfa-challenge.component.ts:186</note>
         <note category="meaning">Error when the server would not begin passkey verification</note>
       </notes>
       <segment>
@@ -962,7 +962,7 @@
     </unit>
     <unit id="mfaChallenge.error.rejected">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:201</note>
+        <note category="location">src/app/mfa-challenge.component.ts:210</note>
         <note category="meaning">Error when the step-up challenge was rejected</note>
       </notes>
       <segment>
@@ -971,7 +971,7 @@
     </unit>
     <unit id="mfaChallenge.error.webauthnCancelled">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:222</note>
+        <note category="location">src/app/mfa-challenge.component.ts:231</note>
         <note category="meaning">Error when the user dismissed the browser&apos;s passkey prompt during verification</note>
       </notes>
       <segment>
@@ -980,7 +980,7 @@
     </unit>
     <unit id="mfaChallenge.error.webauthnUnknown">
       <notes>
-        <note category="location">src/app/mfa-challenge.component.ts:225</note>
+        <note category="location">src/app/mfa-challenge.component.ts:234</note>
         <note category="meaning">Fallback error when the browser could not verify with a passkey</note>
       </notes>
       <segment>
@@ -1329,9 +1329,27 @@
         <source>Back to sign in</source>
       </segment>
     </unit>
+    <unit id="mfaSecurity.signedOut">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:24,28</note>
+        <note category="meaning">Shown on the security page to a visitor who is not signed in</note>
+      </notes>
+      <segment>
+        <source> Sign in to manage your security methods. </source>
+      </segment>
+    </unit>
+    <unit id="mfaSecurity.signedOut.signIn">
+      <notes>
+        <note category="location">src/app/mfa-security.component.html:29,34</note>
+        <note category="meaning">Link from the security page to the sign-in form</note>
+      </notes>
+      <segment>
+        <source> Sign in </source>
+      </segment>
+    </unit>
     <unit id="mfaSecurity.factors.heading">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:23,25</note>
+        <note category="location">src/app/mfa-security.component.html:39,41</note>
         <note category="meaning">Heading above the list of enrolled two-factor methods</note>
       </notes>
       <segment>
@@ -1340,7 +1358,7 @@
     </unit>
     <unit id="mfaSecurity.factors.empty">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:26,31</note>
+        <note category="location">src/app/mfa-security.component.html:42,47</note>
         <note category="meaning">Shown when the account has no two-factor methods</note>
       </notes>
       <segment>
@@ -1349,7 +1367,7 @@
     </unit>
     <unit id="mfaSecurity.factor.added">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:34,35</note>
+        <note category="location">src/app/mfa-security.component.html:50,51</note>
         <note category="meaning">Enrollment date of a two-factor method. {{PLACEHOLDER}} is the date</note>
       </notes>
       <segment>
@@ -1358,7 +1376,7 @@
     </unit>
     <unit id="mfaSecurity.factor.pending">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:35,41</note>
+        <note category="location">src/app/mfa-security.component.html:51,57</note>
         <note category="meaning">Marker on a two-factor method that was started but never verified</note>
       </notes>
       <segment>
@@ -1367,7 +1385,7 @@
     </unit>
     <unit id="mfaSecurity.factor.remove">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:46,54</note>
+        <note category="location">src/app/mfa-security.component.html:62,70</note>
         <note category="meaning">Button removing one two-factor method</note>
       </notes>
       <segment>
@@ -1376,7 +1394,7 @@
     </unit>
     <unit id="mfaSecurity.add">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:56,62</note>
+        <note category="location">src/app/mfa-security.component.html:77,83</note>
         <note category="meaning">Link to the two-factor enrollment wizard</note>
       </notes>
       <segment>
@@ -1385,7 +1403,7 @@
     </unit>
     <unit id="mfaSecurity.regenerate">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:67,70</note>
+        <note category="location">src/app/mfa-security.component.html:88,91</note>
         <note category="meaning">Button issuing a fresh set of recovery codes</note>
       </notes>
       <segment>
@@ -1394,7 +1412,7 @@
     </unit>
     <unit id="mfaSecurity.regenerate.help">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:71,79</note>
+        <note category="location">src/app/mfa-security.component.html:92,100</note>
         <note category="meaning">Help text under the regenerate recovery codes button</note>
       </notes>
       <segment>
@@ -1403,7 +1421,7 @@
     </unit>
     <unit id="mfaSecurity.newRecovery.region.label">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:81,84</note>
+        <note category="location">src/app/mfa-security.component.html:102,105</note>
         <note category="meaning">Accessible name of the regenerated recovery-codes region</note>
       </notes>
       <segment>
@@ -1412,7 +1430,7 @@
     </unit>
     <unit id="mfaSecurity.newRecovery.help">
       <notes>
-        <note category="location">src/app/mfa-security.component.html:84,87</note>
+        <note category="location">src/app/mfa-security.component.html:105,108</note>
         <note category="meaning">Warning above the regenerated recovery codes</note>
       </notes>
       <segment>
@@ -1421,7 +1439,7 @@
     </unit>
     <unit id="mfaSecurity.error.load">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:55</note>
+        <note category="location">src/app/mfa-security.component.ts:70</note>
         <note category="meaning">Error shown when the security settings could not be fetched</note>
       </notes>
       <segment>
@@ -1430,7 +1448,7 @@
     </unit>
     <unit id="mfaSecurity.factorType.totp">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:66</note>
+        <note category="location">src/app/mfa-security.component.ts:81</note>
         <note category="meaning">Name of the authenticator-app two-factor method</note>
       </notes>
       <segment>
@@ -1439,7 +1457,7 @@
     </unit>
     <unit id="mfaSecurity.factorType.webauthn">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:67</note>
+        <note category="location">src/app/mfa-security.component.ts:82</note>
         <note category="meaning">Name of the passkey two-factor method</note>
       </notes>
       <segment>
@@ -1448,7 +1466,7 @@
     </unit>
     <unit id="mfaSecurity.factor.remove.label">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:72</note>
+        <note category="location">src/app/mfa-security.component.ts:87</note>
         <note category="description">Accessible name of a factor&apos;s remove button. Placeholders are the method name and its enrollment date</note>
       </notes>
       <segment>
@@ -1457,7 +1475,7 @@
     </unit>
     <unit id="mfaSecurity.error.remove">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:91</note>
+        <note category="location">src/app/mfa-security.component.ts:106</note>
         <note category="meaning">Error shown when removing a two-factor method failed</note>
       </notes>
       <segment>
@@ -1466,7 +1484,7 @@
     </unit>
     <unit id="mfaSecurity.error.regenerate">
       <notes>
-        <note category="location">src/app/mfa-security.component.ts:112</note>
+        <note category="location">src/app/mfa-security.component.ts:127</note>
         <note category="meaning">Error shown when regenerating recovery codes failed</note>
       </notes>
       <segment>

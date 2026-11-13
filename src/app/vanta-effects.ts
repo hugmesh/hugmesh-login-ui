@@ -34,7 +34,9 @@ export interface LoadedVantaEffect {
 /** The signature {@link LoginBackgroundComponent} depends on, so specs can substitute it. */
 export type VantaEffectLoader = (id: BackgroundEffectId) => Promise<LoadedVantaEffect>;
 
-const EFFECT_IMPORTS: Readonly<Record<BackgroundEffectId, () => Promise<{ default: unknown }>>> = {
+/** Exported (and mutable) so a spec can hand loadVantaEffect the PRODUCTION module shape
+ *  (karma's webpack interop and the esbuild build disagree about it). */
+export const EFFECT_IMPORTS: Record<BackgroundEffectId, () => Promise<{ default: unknown }>> = {
   fog: () => import('vanta/dist/vanta.fog.min'),
   waves: () => import('vanta/dist/vanta.waves.min'),
   net: () => import('vanta/dist/vanta.net.min'),
@@ -51,7 +53,7 @@ export const loadVantaEffect: VantaEffectLoader = async (id) => {
   const [three, effect] = await Promise.all([import('three'), EFFECT_IMPORTS[id]()]);
   return {
     three,
-    factory: effect.default as (options: Record<string, unknown>) => VantaInstance,
+    factory: vantaFactory(effect),
   };
 };
 
@@ -71,4 +73,22 @@ export function webglAvailable(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The effect constructor out of a dynamically imported Vanta module. Vanta's dist UMD
+ * builds set `module.exports = { default: effect }`, and the esbuild application build
+ * hands that back as `{ default: module.exports }`, so `.default` alone is an object and
+ * `factory(...)` threw inside the caller's catch: no Vanta background ever rendered
+ * (the same defect hugmesh-host-shell fixed in #181). Both shapes are accepted.
+ */
+export function vantaFactory(mod: unknown): (options: Record<string, unknown>) => VantaInstance {
+  let candidate: unknown = (mod as { default?: unknown } | null)?.default ?? mod;
+  if (typeof candidate !== 'function') {
+    candidate = (candidate as { default?: unknown } | null)?.default;
+  }
+  if (typeof candidate !== 'function') {
+    throw new Error('vanta effect module exports no effect constructor');
+  }
+  return candidate as (options: Record<string, unknown>) => VantaInstance;
 }

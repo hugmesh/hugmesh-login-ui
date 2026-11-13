@@ -113,9 +113,8 @@
       width: 100%;
       max-width: 12rem;
       padding: 0.5rem;
-      border: 1px solid var(--hug-border);
-      border-radius: t.$radius-sm;
-      background: var(--hug-bg-1);
+      // Edge/fill/radius come from the global field rule (styles.scss): --hug-border
+      // (#1e1e32) here was 1.21:1, an invisible box on the dark page.
       color: var(--hug-text);
       font: inherit;
 

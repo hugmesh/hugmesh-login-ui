@@ -111,6 +111,80 @@ h2 {
   box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.75);
 }
 
+// ── Form fields: a visible edge, a lifted well, a glowing baseline ───────────
+// Same contract as hugmesh-host-shell's styles.scss (#169): the login page is its own
+// document, so the shell's rule never reached it and its fields rendered as browser
+// default white boxes on the dark page (the MFA field, drawn in --hug-border #1e1e32,
+// was 1.21:1). Field edges come from --sd-field-border, which the theme pipeline
+// derives per theme to read at 4.5:1 on that theme's own surfaces.
+$hug-text-fields: 'input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea, select';
+
+:root {
+  --hug-field-border: var(--sd-field-border, #8a8aa8);
+  --hug-field-glow:   var(--sd-field-glow, var(--sd-accent-soft, #b388ff));
+  color-scheme: var(--sd-color-scheme, dark);
+  accent-color: var(--sd-accent-soft, #b388ff);
+}
+
+:where(#{$hug-text-fields}) {
+  --hug-border: var(--hug-field-border);
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--hug-field-border);
+  border-radius: t.$radius-sm;
+  background-color: var(--hug-bg-1);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 55%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  color: var(--hug-text);
+  font: inherit;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 color-mix(in srgb, var(--hug-field-glow) 45%, transparent);
+  transition:
+    border-color t.$transition-base,
+    box-shadow t.$transition-base;
+
+  &::placeholder {
+    color: var(--hug-text-muted);
+    opacity: 1;
+  }
+}
+
+:where(#{$hug-text-fields}):hover:not(:disabled) {
+  --hug-field-border: var(--sd-field-border-hover, #b4b4d0);
+}
+
+:where(#{$hug-text-fields}):focus-visible {
+  --hug-field-border: var(--hug-field-glow);
+  border-color: var(--hug-field-glow);
+  box-shadow:
+    0 0 0 5px rgba(0, 0, 0, 0.75),
+    0 0 18px color-mix(in srgb, var(--hug-field-glow) 45%, transparent),
+    inset 0 -2px 0 var(--hug-field-glow);
+}
+
+:where(#{$hug-text-fields}):is([aria-invalid="true"], .ng-invalid.ng-touched) {
+  --hug-field-border: var(--hug-error);
+  --hug-field-glow: var(--hug-error);
+  border-color: var(--hug-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(#{$hug-text-fields}) {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :where(#{$hug-text-fields}) {
+    background-image: none;
+    box-shadow: none;
+  }
+}
+
 // WCAG 1.4.1 — links must be distinguishable beyond colour: underline by
 // default, thicker on hover/focus.
 a {

@@ -8,6 +8,8 @@ import { HardNavigationService } from './hard-navigation.service';
 import { LocalAgentService, LocalRole } from './local-agent.service';
 import { RolePickerComponent } from './role-picker.component';
 import { LoginBannerComponent } from './login-banner.component';
+import { OtherDomainsComponent } from './other-domains.component';
+import { readBrandName } from './brand-name';
 import { accessibleName, defaultScreenReaderName, isPrintableAscii } from './accessible-name';
 
 /**
@@ -48,7 +50,8 @@ function screenReaderPrompt(): string {
 @Component({
   selector: 'hug-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LoginBannerComponent, RolePickerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LoginBannerComponent, RolePickerComponent,
+    OtherDomainsComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
@@ -59,6 +62,10 @@ export class LoginComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   readonly session = inject(SessionService);
+
+  /** What this page calls itself: the theme's wordmark (a domain with its own look), else
+   *  the name it always said. */
+  readonly brand = readBrandName('hugmesh.net');
 
   /** The native sign-in credentials typed into our own form. */
   username = '';

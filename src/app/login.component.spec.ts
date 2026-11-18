@@ -6,6 +6,7 @@ import { SessionService } from './session.service';
 import { HardNavigationService } from './hard-navigation.service';
 import { LocalAgentService, LocalRole } from './local-agent.service';
 import { PublicAnnouncementsService } from './public-announcements.service';
+import { OtherDomainsService } from './other-domains.service';
 
 describe('LoginComponent', () => {
   let fixture: ComponentFixture<LoginComponent>;
@@ -53,6 +54,8 @@ describe('LoginComponent', () => {
         { provide: LocalAgentService, useValue: localAgent },
         { provide: PublicAnnouncementsService, useValue: announcements },
         { provide: HardNavigationService, useValue: hardNav },
+        // the mesh's other domains come from the door: none here (hermetic)
+        { provide: OtherDomainsService, useValue: { load: async () => [] } },
       ],
     }).compileComponents();
 
@@ -70,6 +73,35 @@ describe('LoginComponent', () => {
   // =====================================================================
   // NATIVE username/password form — OUR OWN login surface
   // =====================================================================
+
+  it('says hugmesh.net where the page always said it when no theme names the domain', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#hug-login-heading')?.textContent?.trim()).toBe('Sign in to hugmesh.net');
+    expect(el.querySelector('[data-testid="login-intro"]')?.textContent?.trim())
+      .toBe('Sign in with your hugmesh.net username and password.');
+  });
+
+  it("says the theme's own name in the heading and the intro (a domain with its own look)", () => {
+    document.documentElement.style.setProperty('--sd-header-content', "'Acme'");
+    try {
+      const themed = TestBed.createComponent(LoginComponent);
+      themed.detectChanges();
+      const el = themed.nativeElement as HTMLElement;
+      expect(el.querySelector('#hug-login-heading')?.textContent?.trim()).toBe('Sign in to Acme');
+      expect(el.querySelector('[data-testid="login-intro"]')?.textContent?.trim())
+        .toBe('Sign in with your Acme username and password.');
+      expect(el.textContent).not.toContain('hugmesh.net');
+    } finally {
+      document.documentElement.style.removeProperty('--sd-header-content');
+    }
+  });
+
+  it('draws the other-domains choice at the end of the sign-in section', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('hug-other-domains')).toBeTruthy();
+  });
 
   it('mounts the public announcement banner ABOVE the login form', () => {
     spyOn(sessionStub, 'loggedIn').and.returnValue(false);

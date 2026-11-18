@@ -560,22 +560,22 @@
     </unit>
     <unit id="login.heading">
       <notes>
-        <note category="location">src/app/login.component.html:4,9</note>
+        <note category="location">src/app/login.component.html:4,6</note>
         <note category="meaning">Heading of the sign-in page</note>
       </notes>
       <segment>
-        <source>Sign in to hugmesh.net</source>
-        <target>⟦Šîğñ îñ ţö ĥüğɱéšĥ.ñéţ·····⟧</target>
+        <source>Sign in to <ph id="0" equiv="INTERPOLATION" disp="{{ brand }}"/></source>
+        <target>⟦Šîğñ îñ ţö <ph id="0" equiv="INTERPOLATION" disp="{{ brand }}"/>············⟧</target>
       </segment>
     </unit>
     <unit id="login.intro">
       <notes>
-        <note category="location">src/app/login.component.html:28,32</note>
+        <note category="location">src/app/login.component.html:28,31</note>
         <note category="meaning">Instruction under the sign-in heading</note>
       </notes>
       <segment>
-        <source> Sign in with your hugmesh.net username and password. </source>
-        <target>⟦ Šîğñ îñ ŵîţĥ ýöüŕ ĥüğɱéšĥ.ñéţ üšéŕñåɱé åñð þåššŵöŕð. ············⟧</target>
+        <source> Sign in with your <ph id="0" equiv="INTERPOLATION" disp="{{ brand }}"/> username and password. </source>
+        <target>⟦ Šîğñ îñ ŵîţĥ ýöüŕ <ph id="0" equiv="INTERPOLATION" disp="{{ brand }}"/> üšéŕñåɱé åñð þåššŵöŕð. ···················⟧</target>
       </segment>
     </unit>
     <unit id="login.username.label">
@@ -788,7 +788,7 @@
     </unit>
     <unit id="login.securityLink">
       <notes>
-        <note category="location">src/app/login.component.html:239,243</note>
+        <note category="location">src/app/login.component.html:239,245</note>
         <note category="meaning">Link to the account security / MFA page</note>
       </notes>
       <segment>
@@ -798,7 +798,7 @@
     </unit>
     <unit id="login.complete.screenReaderName.prompt">
       <notes>
-        <note category="location">src/app/login.component.ts:25</note>
+        <note category="location">src/app/login.component.ts:27</note>
         <note category="meaning">Prompt shown when a display name contains characters a screen reader cannot announce</note>
       </notes>
       <segment>
@@ -808,7 +808,7 @@
     </unit>
     <unit id="login.error.mfaCodeRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:228</note>
+        <note category="location">src/app/login.component.ts:235</note>
         <note category="meaning">Validation error when the two-factor passcode field is empty</note>
       </notes>
       <segment>
@@ -818,7 +818,7 @@
     </unit>
     <unit id="login.error.credentialsRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:232</note>
+        <note category="location">src/app/login.component.ts:239</note>
         <note category="meaning">Validation error when username or password is missing</note>
       </notes>
       <segment>
@@ -828,7 +828,7 @@
     </unit>
     <unit id="login.error.localRoleNeedsMfa">
       <notes>
-        <note category="location">src/app/login.component.ts:299</note>
+        <note category="location">src/app/login.component.ts:306</note>
         <note category="meaning">Shown when a passwordless local role needs a two-factor code the handoff cannot carry</note>
       </notes>
       <segment>
@@ -838,7 +838,7 @@
     </unit>
     <unit id="login.error.signInFailed">
       <notes>
-        <note category="location">src/app/login.component.ts:322</note>
+        <note category="location">src/app/login.component.ts:329</note>
         <note category="description">Sign-in failure. {{PLACEHOLDER}} is the server&apos;s error token, not translated</note>
       </notes>
       <segment>
@@ -848,7 +848,7 @@
     </unit>
     <unit id="login.error.unavailable">
       <notes>
-        <note category="location">src/app/login.component.ts:327</note>
+        <note category="location">src/app/login.component.ts:334</note>
         <note category="meaning">Shown when the sign-in backend is switched off or unreachable</note>
       </notes>
       <segment>
@@ -858,7 +858,7 @@
     </unit>
     <unit id="login.error.displayNameRequired">
       <notes>
-        <note category="location">src/app/login.component.ts:347</note>
+        <note category="location">src/app/login.component.ts:354</note>
         <note category="meaning">Validation error when the display name is blank</note>
       </notes>
       <segment>
@@ -1665,6 +1665,16 @@
       <segment>
         <source>Could not regenerate recovery codes.</source>
         <target>⟦Çöüļð ñöţ ŕéğéñéŕåţé ŕéçöṽéŕý çöðéš.·········⟧</target>
+      </segment>
+    </unit>
+    <unit id="login.otherDomains.heading">
+      <notes>
+        <note category="location">src/app/other-domains.component.ts:23,27</note>
+        <note category="meaning">Heading above the links to this mesh&apos;s other domains</note>
+      </notes>
+      <segment>
+        <source> Sign in to another domain </source>
+        <target>⟦ Šîğñ îñ ţö åñöţĥéŕ ðöɱåîñ ······⟧</target>
       </segment>
     </unit>
     <unit id="rolePicker.intro">

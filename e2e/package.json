@@ -9,7 +9,7 @@
     "bdd:list": "bddgen && playwright test --list"
   },
   "devDependencies": {
-    "@playwright/test": "1.49.0",
+    "@playwright/test": "1.55.1",
     "@types/node": "^24",
     "playwright-bdd": "^9.2.0"
   }

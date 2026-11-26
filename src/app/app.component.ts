@@ -1,6 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { Title } from '@angular/platform-browser';
 import { RouterOutlet } from '@angular/router';
 import { LoginBackgroundComponent } from './login-background.component';
+import { readBrandName } from './brand-name';
 
 /**
  * Shell for the Login remote — and, on this platform, the document real users get.
@@ -19,4 +21,10 @@ import { LoginBackgroundComponent } from './login-background.component';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent {}
+export class AppComponent {
+  constructor() {
+    // The tab/history title names the brand the page signs you in to, like its heading does (the theme's
+    // header text); a page with no theme keeps the title index.html ships, "HugMesh Login".
+    inject(Title).setTitle(`${readBrandName('HugMesh')} Login`);
+  }
+}

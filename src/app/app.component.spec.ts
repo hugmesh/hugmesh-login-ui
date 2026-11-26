@@ -34,6 +34,22 @@ describe('AppComponent (standalone dev shell)', () => {
 
   afterEach(() => fixture.destroy());
 
+  it('titles the tab with the brand the heading names, HugMesh Login with no theme', () => {
+    expect(document.title).toBe('HugMesh Login');
+  });
+
+  it('follows the theme wordmark: a themed page is titled "<Brand> Login"', () => {
+    document.documentElement.style.setProperty('--sd-header-content', "'Acme'");
+    try {
+      const themed = TestBed.createComponent(AppComponent);
+      themed.detectChanges();
+      expect(document.title).toBe('Acme Login');
+      themed.destroy();
+    } finally {
+      document.documentElement.style.removeProperty('--sd-header-content');
+    }
+  });
+
   it('creates the dev-shell root', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
